@@ -1,0 +1,27 @@
+#cloud-config
+coreos:
+  units:
+    - name: media-dynamicrun.mount
+      command: start
+      content: |
+        [Unit]
+        Description=Mount vhd for dynamic loading of scripts
+        [Mount]
+        What=/dev/sdb1
+        Where=/media/dynamicrun
+    - name: dynamicrun.service
+      command: start
+      content: |
+        [Unit]
+        Description=Run script from dynamic mount
+        Requires=media-dynamicrun.mount
+        After=media-dynamicrun.mount
+        [Service]
+        Type=oneshot
+        ExecStart=/bin/bash /media/dynamicrun/dynamicrun.sh
+write_files:
+  - path: /home/core/fleet.conf
+    permissions: 0644
+    content: |
+      verbosity=1
+      metadata="region=us-west,type=ssd"
