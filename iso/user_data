@@ -20,8 +20,7 @@ coreos:
         Type=oneshot
         ExecStart=/bin/bash /media/dynamicrun/dynamicrun.sh
 write_files:
-  - path: /home/core/fleet.conf
+  - path: /home/core/cloud-config.loaded
     permissions: 0644
     content: |
-      verbosity=1
-      metadata="region=us-west,type=ssd"
+      Cloud Config Successfully Loaded
