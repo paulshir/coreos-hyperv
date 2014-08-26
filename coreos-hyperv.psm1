@@ -210,7 +210,7 @@ Function New-CoreosConfig {
             throw "Config doesn't exist"
         }
 
-        $outdir = "$(GetTmpFileLocation)\conifgs"
+        $outdir = "$(GetTmpFileLocation)\configs"
         if (!(Test-Path $outdir)) {
             mkdir $outdir | Out-Null
         }
@@ -221,12 +221,14 @@ Function New-CoreosConfig {
     }
 
     PROCESS {
-        $cfg = Get-Content $Config | foreach { $_ -replace '${VM_NAME}', $VMName }
-        if ($VMNumber) { $cfg = $cfg | foreach { $_ -replace '${VM_NUMBER}', $VMNumber} | foreach { $_ -replace '${VM_NUMBER_00}', $vmnumber00 } }
-        if ($EtcdDiscoveryToken) { $cfg = $cfg | foreach { $_ -replace '${ETCD_DISCOVERY_TOKEN}', $EtcdDiscoveryToken } }
-        if ($ClusterName) { $cfg = $cfg | foreach { $_ -replace '${CLUSTER_NAME}', $ClusterName } }
+        $cfg = Get-Content $Config | foreach { $_ -replace '{{VM_NAME}}', $VMName }
+        if ($VMNumber) { $cfg = $cfg | foreach { $_ -replace '{{VM_NUMBER}}', $VMNumber} | foreach { $_ -replace '{{VM_NUMBER_00}}', $vmnumber00 } }
+        if ($EtcdDiscoveryToken) { $cfg = $cfg | foreach { $_ -replace '{{ETCD_DISCOVERY_TOKEN}}', $EtcdDiscoveryToken } }
+        if ($ClusterName) { $cfg = $cfg | foreach { $_ -replace '{{CLUSTER_NAME}}', $ClusterName } }
 
         $cfg | Out-File $outConfig
+
+        Write-Output $outConfig
     }
 
     END {}
