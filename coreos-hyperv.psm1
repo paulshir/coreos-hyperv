@@ -92,16 +92,7 @@ Function New-CoreosVM {
             Start-Sleep -s 1 
         }        
 
-        # Configure VM properly after install
-        Stop-VM $vm -TurnOff | Out-Null
-
-        Remove-VMDvdDrive -VMName $Name -ControllerNumber 0 -ControllerLocation 1
-        Remove-VMDvdDrive -VMName $Name -ControllerNumber 1 -ControllerLocation 0
-        Remove-VMHardDiskDrive -VMName $Name -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1
-
-        $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $Name -SwitchName $_ } | Out-Null
-
-        Write-Output (Get-VM -Name $Name)
+        NewCoreosVMAfterInstall -Name:$Name -NetworkSwitchNames:$NetworkSwitchNames
     }
 
     END {}
@@ -114,12 +105,77 @@ Function New-CoreosVM {
 Function New-CoreosCluster {
     [CmdletBinding()]
     Param (
-        
+        [Parameter (Mandatory=$true)]
+        [Alias("ClusterName")]
+        [String] $Name,
+
+        [Parameter (Mandatory=$true)]
+        [int] $Count,
+
+        [Parameter (Mandatory=$true)]
+        [String[]] $NetworkSwitchNames,
+
+        [Parameter (Mandatory=$false, ParameterSetName="SingleConfig")]
+        [string] $Config,
+
+        [Parameter (Mandatory=$false, ParameterSetName="MultipleConfigs")]
+        [String[]] $Configs,
+
+        [Parameter (Mandatory=$false)]
+        [Switch] $InstallInParallel=$false,
+
+        [Parameter (Mandatory=$false)]
+        [Switch] $GenerateEtcdDiscoveryToken
     )
 
-    BEGIN {}
+    BEGIN {
+        $NetworkSwitchNames | foreach { Get-VMSwitch -Name $_ -ErrorAction:Stop} | Out-Null
+        if ($Configs -and $Configs.length -ne $Count) { throw "Number of config files doesn't match the count in the cluster" }
+    }
 
     PROCESS {
+        $token = null
+        if ($GenerateEtcdDiscoveryToken) {
+            $token = New-EtcdDiscoveryToken    
+        }
+
+
+        for ($i = 1; $i -le $Count; $i++) {
+            $VMName = "$Name_$($i.ToString("00"))"
+            $editedConfig
+            if ($Config) {
+                $editedConfig = New-CoreosConfig -Config:$Config -Name:$VMName -VMNumber:$i -E
+            } elseif ($Configs) {
+                $editedConfig = New-CoreosConfig -Config:$Configs[$($i - 1)] -Name:$VMName -VMNumber:$i
+            }
+
+            if ($InstallInParallel) {
+                New-CoreosInstallVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig
+            } else {
+                New-CoreosVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig
+            }
+        }
+
+        if ($InstallInParallel) {
+            for ($i = 1; $i -le $Count; $i++) {
+                $VMName = "$Name_$($i.ToString("00"))"
+                Start-VM $VMName
+            }
+
+            # Blindly wait for install to complete. Need to come up with some way of monitoring this.
+            # Adding some extra time for running in parallel.
+            $timeout = GetInstallTimeout
+            $timeout = $timeout + ($timeout/10)*$Count
+            for ($i=0; $i -lt $timeout; $i++) {
+                Write-Progress -Activity "Installing coreos to $Count VMs in Cluster $Name" -SecondsRemaining $($timeout - $i)
+                Start-Sleep -s 1 
+            }
+
+            for ($i = 1; $i -le $Count; $i++) {
+                $VMName = "$Name_$($i.ToString("00"))"
+                NewCoreosVMAfterInstall -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames
+            }   
+        }
     }
 
     END {}
@@ -132,12 +188,45 @@ Function New-CoreosCluster {
 Function New-CoreosConfig {
     [CmdletBinding()]
     Param (
-        
+        [Parameter (Mandatory=$true, ValueFromPipeline=$true)]
+        [String] $Config,
+
+        [Parameter (Mandatory=$true)]
+        [Alias("Name")]
+        [String] $VMName,
+
+        [Parameter (Mandatory=$False)]
+        [int] $VMNumber,
+
+        [Parameter (Mandatory=$false)]
+        [String] $EtcdDiscoveryToken,
+
+        [Parameter (Mandatory=$false)]
+        [String] $ClusterName
     )
 
-    BEGIN {}
+    BEGIN {
+        if (!(Test-Path $Config)) {
+            throw "Config doesn't exist"
+        }
+
+        $outdir = "$(GetTmpFileLocation)\conifgs"
+        if (!(Test-Path $outdir)) {
+            mkdir $outdir | Out-Null
+        }
+
+        $outConfig = "$outdir\$vmname"
+
+        $vmnumber00 = $VMNumber.ToString("00")
+    }
 
     PROCESS {
+        $cfg = Get-Content $Config | foreach { $_ -replace '${VM_NAME}', $VMName }
+        if ($VMNumber) { $cfg = $cfg | foreach { $_ -replace '${VM_NUMBER}', $VMNumber} | foreach { $_ -replace '${VM_NUMBER_00}', $vmnumber00 } }
+        if ($EtcdDiscoveryToken) { $cfg = $cfg | foreach { $_ -replace '${ETCD_DISCOVERY_TOKEN}', $EtcdDiscoveryToken } }
+        if ($ClusterName) { $cfg = $cfg | foreach { $_ -replace '${CLUSTER_NAME}', $ClusterName } }
+
+        $cfg | Out-File $outConfig
     }
 
     END {}
@@ -179,6 +268,15 @@ Function Get-CoreosISO {
 
     END {}
 } 
+
+<#
+.SYNOPSIS
+    Get a discovery token for etcd.
+#>
+Function New-EtcdDiscoveryToken {
+    $wr = New-WebRequest -Uri "https://discovery.etcd.io/net"
+    Write-Output $wr.Content
+}
 
 Function GetCoreosISOLocation {
     if ($env:COREOS_HYPERV_COREOS_ISO) {
@@ -238,6 +336,37 @@ Function GetInstallTimeout {
     } else {
         Write-Output 200
     }
+}
+
+Function NewCoreosVMAfterInstall {
+    [CmdletBinding()]
+    Param (
+        [Parameter (ValueFromPipelineByPropertyName=$true, Mandatory=$true)]
+        [Alias("vmname")]
+        [String] $Name,
+
+        [Parameter (ValueFromPipelineByPropertyName=$true, Mandatory=$true)]
+        [String[]] $NetworkSwitchNames
+    )
+
+    BEGIN {
+        $NetworkSwitchNames | foreach { Get-VMSwitch -Name $_ -ErrorAction:Stop} | Out-Null
+    }
+
+    PROCESS {
+        # Configure VM properly after install
+        Stop-VM $vm -TurnOff | Out-Null
+
+        Remove-VMDvdDrive -VMName $Name -ControllerNumber 0 -ControllerLocation 1
+        Remove-VMDvdDrive -VMName $Name -ControllerNumber 1 -ControllerLocation 0
+        Remove-VMHardDiskDrive -VMName $Name -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1
+
+        $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $Name -SwitchName $_ } | Out-Null
+
+        Write-Output (Get-VM -Name $Name)
+    }
+
+    END {}
 }
 
 Export-ModuleMember *-*
