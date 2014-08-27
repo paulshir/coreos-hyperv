@@ -1,11 +1,7 @@
 #! /bin/bash
 #
 
-if [[ -f /media/dynamicrun/static.network ]];
-then
-	cp /media/dynamicrun/static.network /etc/systemd/network/static.network
-	systemctl restart systemd-networkd
-fi
+sleep 10
 
 if [[ -f /media/dynamicrun/cloud-config.yaml ]];
 then

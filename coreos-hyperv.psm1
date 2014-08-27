@@ -35,7 +35,7 @@ Function New-CoreosInstallVM {
 
         & cmd /C "copy $drlocation\** $($vhd.DriveLetter):\" | Out-Null
         if ($Config) {
-            & cmd /C "copy $conifg $($vhd.DriveLetter):\" | Out-Null
+            & cmd /C "copy $Config $($vhd.DriveLetter):\cloud-config.yaml" | Out-Null
         }
 
         Dismount-VHD $drvhdlocation
@@ -49,8 +49,6 @@ Function New-CoreosInstallVM {
         Add-VMDvdDrive -VMName $Name -ControllerNumber 0 -ControllerLocation 1 -Path $drisolocation
         Set-VMDvdDrive -VMName $Name -ControllerNumber 1 -ControllerLocation 0 -Path $coreosisoLocation
         Add-VMHardDiskDrive -VMName $Name -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1 -Path $drvhdlocation
-
-        Remove-Item "$(GetTmpFileLocation)\$Name.vhdx" -Force
         
         Write-Output (Get-VM -Name $Name)
     }
@@ -134,31 +132,30 @@ Function New-CoreosCluster {
     }
 
     PROCESS {
-        $token = null
+        $token = $null
         if ($GenerateEtcdDiscoveryToken) {
             $token = New-EtcdDiscoveryToken    
         }
 
-
         for ($i = 1; $i -le $Count; $i++) {
-            $VMName = "$Name_$($i.ToString("00"))"
+            $VMName = "$($Name)_$($i.ToString("00"))"
             $editedConfig
             if ($Config) {
-                $editedConfig = New-CoreosConfig -Config:$Config -Name:$VMName -VMNumber:$i -E
+                $editedConfig = New-CoreosConfig -Config:$Config -Name:$VMName -VMNumber:$i -EtcdDiscoveryToken:$token
             } elseif ($Configs) {
-                $editedConfig = New-CoreosConfig -Config:$Configs[$($i - 1)] -Name:$VMName -VMNumber:$i
+                $editedConfig = New-CoreosConfig -Config:$Configs[$($i - 1)] -Name:$VMName -VMNumber:$i -EtcdDiscoveryToken:$token
             }
 
             if ($InstallInParallel) {
-                New-CoreosInstallVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig
+                New-CoreosInstallVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig | Out-Null
             } else {
-                New-CoreosVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig
+                New-CoreosVM -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames -Config:$editedConfig | Out-Null
             }
         }
 
         if ($InstallInParallel) {
             for ($i = 1; $i -le $Count; $i++) {
-                $VMName = "$Name_$($i.ToString("00"))"
+                $VMName = "$($Name)_$($i.ToString("00"))"
                 Start-VM $VMName
             }
 
@@ -172,8 +169,8 @@ Function New-CoreosCluster {
             }
 
             for ($i = 1; $i -le $Count; $i++) {
-                $VMName = "$Name_$($i.ToString("00"))"
-                NewCoreosVMAfterInstall -Name:$VMName -NetworkSwitchNames:$NetworkSwitchNames
+                $VMName = "$($Name)_$($i.ToString("00"))"
+                NewCoreosVMAfterInstall -VMName:$VMName -NetworkSwitchNames:$NetworkSwitchNames
             }   
         }
     }
@@ -276,7 +273,7 @@ Function Get-CoreosISO {
     Get a discovery token for etcd.
 #>
 Function New-EtcdDiscoveryToken {
-    $wr = New-WebRequest -Uri "https://discovery.etcd.io/net"
+    $wr = Invoke-WebRequest -Uri "https://discovery.etcd.io/new"
     Write-Output $wr.Content
 }
 
@@ -357,13 +354,15 @@ Function NewCoreosVMAfterInstall {
 
     PROCESS {
         # Configure VM properly after install
-        Stop-VM $vm -TurnOff | Out-Null
+        Stop-VM -VMName $Name -TurnOff | Out-Null
 
         Remove-VMDvdDrive -VMName $Name -ControllerNumber 0 -ControllerLocation 1
         Remove-VMDvdDrive -VMName $Name -ControllerNumber 1 -ControllerLocation 0
         Remove-VMHardDiskDrive -VMName $Name -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1
 
         $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $Name -SwitchName $_ } | Out-Null
+
+        Remove-Item "$(GetTmpFileLocation)\$Name.vhdx" -Force
 
         Write-Output (Get-VM -Name $Name)
     }
