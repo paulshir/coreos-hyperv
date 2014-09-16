@@ -6,17 +6,79 @@
     Creates and installs coreos on a cluster of virtual machines.
 #>
 Function New-CoreosCluster {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName="NetworkConfigs_SingleConfig")]
     Param (
-        
+        [Parameter (Mandatory=$true)]
+        [Alias("ClusterName")]
+        [String] $Name,
+
+        [Parameter (Mandatory=$true)]
+        [Int] $Count,
+
+        [Parameter (Mandatory=$true)]
+        [PSObject[]] $NetworkConfigs,
+
+        [Parameter (Mandatory=$false, ParameterSetName="SingleConfig")]
+        [String] $Config,
+
+        [Parameter (Mandatory=$false, ParameterSetName="MultipleConfigs")]
+        [String[]] $Configs
     )
 
-    BEGIN {}
-
     PROCESS {
-    }
+        if (!(TestIsAdmin)) {
+            throw "You must run as an administrator to run this script."
+            return
+        }
 
-    END {}
+        $ClusterFilesDirectory = GetCoreosClusterDirectory -ClusterName:$Name
+
+        if (Test-Path $ClusterFilesDirectory) {
+            throw "Cluster $Name already exists. Exiting."
+            return
+        }
+
+        if ($Configs -and $Configs.length -ne $Count) { throw "Number of config files doesn't match the count in the cluster"; return }
+
+        New-Item -Type Directory $ClusterFilesDirectory | Out-Null
+
+        # Store the Cluster Config Info
+        $ConfigInfo = New-Object PSObject
+        $ConfigInfo | Add-Member Networks $NetworkConfigs
+        $ConfigInfo | Add-Member EtcdDiscoveryToken $(New-EtcdDiscoveryToken)
+
+        if ($Config) {
+            if (Test-Path $Config) {
+                $ConfigTemplate = "template.yaml"
+                $ConfigTemplatePath = Join-Path -Path (GetCoreosClusterDirectory -ClusterName:$Name) $ConfigTemplate
+
+                Copy-Item $Config $ConfigTemplatePath
+                $ConfigInfo | Add-Member DefaultConfigTemplate $ConfigTemplate
+            } else {
+                throw ("Config $Config not found.")
+            }
+        }
+
+        # Store the VMs Info
+        $ClusterInfo = New-Object PSObject
+        $ClusterInfo | Add-Member VMs @()
+        $ClusterInfo | Add-Member Name $Name
+        $ClusterInfo | Add-Member Config $ConfigInfo
+
+
+        for ($i = 0; $i -lt $Count; $i++) {
+            if ($Configs) {
+                NewVMInCoreosClusterInfo -ClusterInfo:$ClusterInfo -Config:$Configs[$i]
+            } else {
+                NewVMInCoreosClusterInfo -ClusterInfo:$ClusterInfo
+            }
+        }
+
+        OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        CoreosClusterVMWorker -ClusterInfo:$ClusterInfo
+
+        Write-Output $ClusterInfo
+    }
 }
 
 <#
@@ -24,266 +86,102 @@ Function New-CoreosCluster {
     Removes a cluster of coreos virtual machines and associated files.
 #>
 Function Remove-CoreosCluster {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
     Param (
-        
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterInfo", ValueFromPipeline=$true)]
+        [PSObject] $ClusterInfo,
+
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterName")]
+        [String] $ClusterName
     )
 
-    BEGIN {}
-
     PROCESS {
-    }
+        if ($ClusterName) {
+            $ClusterInfo = Get-CoreosCluster -ClusterName:$ClusterName
+        }
 
-    END {}
+        $ClusterInfo | Stop-CoreosCluster
+        $ClusterInfo.VMs | where { $_.State -eq "Completed" } | foreach { $_.State = "Remove" }
+
+        OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        CoreosClusterVMWorker -ClusterInfo:$ClusterInfo
+
+        $ClusterFilesDirectory = GetCoreosClusterDirectory -ClusterName:$ClusterInfo.Name
+        Remove-Item -Force -Recurse $ClusterFilesDirectory
+    }
 }
 
 <#
 .SYNOPSIS
     Starts up a cluster of coreos virtual machines.
 #>
-Function Start-CorosCluster {
-    [CmdletBinding()]
+Function Start-CoreosCluster {
+    [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
     Param (
-        
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterInfo", ValueFromPipeline=$true)]
+        [PSObject] $ClusterInfo,
+
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterName")]
+        [String] $ClusterName
     )
 
-    BEGIN {}
-
     PROCESS {
-    }
+        if ($ClusterName) {
+            $ClusterInfo = Get-CoreosCluster -ClusterName:$ClusterName
+        }
 
-    END {}
+        $ClusterInfo.VMs | foreach { Start-VM -VMName $_.Name | Out-Null }
+    }
 }
 
 <#
 .SYNOPSIS
     Stops a cluster of coreos virtual machines.
 #>
-Function Start-CorosCluster {
-    [CmdletBinding()]
+Function Stop-CoreosCluster {
+    [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
     Param (
-        
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterInfo", ValueFromPipeline=$true)]
+        [PSObject] $ClusterInfo,
+
+        [Parameter (Mandatory=$true, ParameterSetName="ClusterName")]
+        [String] $ClusterName
     )
 
-    BEGIN {}
-
     PROCESS {
-    }
+        if ($ClusterName) {
+            $ClusterInfo = Get-CoreosCluster -ClusterName:$ClusterName
+        }
 
-    END {}
+        $ClusterInfo.VMs | foreach { Stop-VM -VMName $_.Name | Out-Null }
+    }
 }
 
 <#
 .SYNOPSIS
     Gets a cluster of coreos virtual machines.
 #>
-Function Get-CorosCluster {
+Function Get-CoreosCluster {
     [CmdletBinding()]
     Param (
-        
+        [Parameter (Mandatory=$true)]
+        [String] $ClusterName
     )
 
-    BEGIN {}
-
     PROCESS {
-    }
+        $infoFile = Join-Path -Path $(GetCoreosClustersDirectory) "$ClusterName\cluster-info.json"
+        if (!(Test-Path $infoFile)) {
+            throw "Coreos Cluster $ClusterName doesn't exist."
+            return
+        }
 
-    END {}
+        Get-Content $infoFile -Raw | ConvertFrom-Json
+    }
 }
 
 ############################
 ### Manage VM Functions ####
 ############################
-<#
-.SYNOPSIS
-    Creates and installs coreos on a virtual machine to a cluster.
-#>
-Function New-CoreosVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName,
-
-        [Parameter (Mandatory=$true)]
-        [String[]] $NetworkSwitchNames,
-
-        [Parameter (Mandatory=$false)]
-        [String] $Config
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        # Create an install vm and start it.
-        $vm = New-CoreosInstallVM -Name:$VMName -ClusterName:$ClusterName -NetworkSwitchNames:$NetworkSwitchNames -Config:$Config
-        Start-VM $vm | Out-Null
-
-        # Blindly wait for install to complete. Need to come up with some way of monitoring this.
-        $timeout = GetInstallTimeout
-        for ($i=0; $i -lt $timeout; $i++) {
-            Write-Progress -Activity "Installing coreos to VM $VMName" -SecondsRemaining $($timeout - $i)
-            Start-Sleep -s 1 
-        }
-
-        Stop-VM -VMName $VMName -TurnOff | Out-Null
-
-        RemoveCoreosISO -VMName:$VMName
-        RemoveDynamicRun -VMName:$VMName
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Creates a virtual machine with a coreos install disk.
-#>
-Function New-CoreosInstallVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName,
-
-        [Parameter (Mandatory=$true)]
-        [String[]] $NetworkSwitchNames,
-
-        [Parameter (Mandatory=$false)]
-        [String] $Config
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        $vhdLocation = "$((Get-VMHost).VirtualHardDiskPath)\$VMName.vhd"
-
-        $NetworkSwitchNames | foreach { Get-VMSwitch -Name $_ -ErrorAction:Stop} | Out-Null
-
-        # Create the VM
-        $vm = New-VM -Name $VMName -MemoryStartupBytes 1024MB -NoVHD -Generation 1 -BootDevice CD -SwitchName $NetworkSwitchNames[0]
-        $vm | Set-VMMemory -DynamicMemoryEnabled:$true
-        $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $VMName -SwitchName $_ } | Out-Null
-        $vhd = New-VHD -Path $vhdLocation -SizeBytes 10GB
-
-        Add-VMHardDiskDrive -VMName $VMName -ControllerType IDE -ControllerNumber 0 -ControllerLocation 0 -Path $vhd.Path
-        
-        AddCoreosISO -VMName:$VMName
-        if ($Config) { AddDynamicRun -VMName:$VMName -ClusterName:$ClusterName -Config:$Config -Install }
-        else { AddDynamicRun -VMName:$VMName -ClusterName:$ClusterName -Install }
-        
-        Write-Output (Get-VM -Name $VMName)
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Removes a coreos virtual machine and associated files from a cluster.
-#>
-Function Remove-CoreosVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        Get-VM -VMName $VMName | Stop-VM -TurnOff | Out-Null
-
-        RemoveCoreosISO -VMName:$VMName
-        RemoveDynamicRun -VMName:$VMName
-
-        $vhd = (Get-VMHardDiskDrive -VMName -ControllerNumber 0 -ControllerLocation 0)
-        Get-VM -VMName:$VMName | Remove-VM
-
-        if ($vhd -and (Test-Path($vhd.Path))) {
-            Remove-Item $vhd.Path -Force
-        }
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Starts up a coreos virtual machine.
-#>
-Function Start-CorosVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        PreStartCoreosVM -VMName:$VMName -VMNumber:$VMNumber
-        Start-VM -VMName:$VMName
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Stops a coreos virtual machine.
-#>
-Function Stop-CorosVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        Stop-VM -VMName:$VMName
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Gets a coreos virtual machine.
-#>
-Function Get-CorosVM {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {
-        Get-VM -VMName = $VMName
-    }
-
-    END {}
-}
 
 ############################
 # Other External Functions #
@@ -305,7 +203,7 @@ Function New-CoreosConfig {
         [Alias("Name")]
         [String] $VMName,
 
-        [Parameter (Mandatory=$False)]
+        [Parameter (Mandatory=$false)]
         [int] $VMNumber,
 
         [Parameter (Mandatory=$false)]
@@ -315,30 +213,26 @@ Function New-CoreosConfig {
         [String] $ClusterName
     )
 
-    BEGIN {
+    PROCESS {
         if (!(Test-Path $Path)) {
             throw "Config doesn't exist"
         }
 
-        if (!(Test-Path $Destination)) {
+        if (Test-Path $Destination) {
             Move-Item -Path $Destination -Destination "$Destination.$(GetDateTimeStamp)_bak"
         }
 
         $vmnumber00 = $VMNumber.ToString("00")
-    }
 
-    PROCESS {
-        $cfg = Get-Content $Config | foreach { $_ -replace '{{VM_NAME}}', $VMName }
-        if ($VMNumber) { $cfg = $cfg | foreach { $_ -replace '{{VM_NUMBER}}', $VMNumber} | foreach { $_ -replace '{{VM_NUMBER_00}}', $vmnumber00 } }
+        $cfg = Get-Content $Path | foreach { $_ -replace '{{VM_NAME}}', $VMName }
+        if ($VMNumber -or $VMNumber -eq 0) { $cfg = $cfg | foreach { $_ -replace '{{VM_NUMBER}}', $VMNumber.ToString() } | foreach { $_ -replace '{{VM_NUMBER_00}}', $vmnumber00 } }
         if ($EtcdDiscoveryToken) { $cfg = $cfg | foreach { $_ -replace '{{ETCD_DISCOVERY_TOKEN}}', $EtcdDiscoveryToken } }
         if ($ClusterName) { $cfg = $cfg | foreach { $_ -replace '{{CLUSTER_NAME}}', $ClusterName } }
 
-        $cfg | Out-File $Destination
+        $cfg | Out-UnixFile -Path $Destination
 
         Get-Item $Destination
     }
-
-    END {}
 }
 
 <#
@@ -350,8 +244,6 @@ Function Get-CoreosFilesDirectory {
     Param (
         
     )
-
-    BEGIN {}
 
     PROCESS {
         if ($env:COREOS_HYPERV_COREOS_FILES_DIR) {
@@ -366,8 +258,6 @@ Function Get-CoreosFilesDirectory {
             Get-Item $dir
         }
     }
-
-    END {}
 }
 
 <#
@@ -382,18 +272,237 @@ Function New-EtcdDiscoveryToken {
 ############################
 #### Internal Functions ####
 ############################
+<#
+.SYNOPSIS
+    Adds the CoreosISO to a VM.
+#>
+Function AddCoreosISO {
+    [CmdletBinding()]
+    Param (
+        [Parameter (Mandatory=$true)]
+        [String] $VMName
+    )
+
+    BEGIN {
+        $coreosisoLocation = GetCoreosISO
+    }
+
+    PROCESS {        
+        RemoveCoreosISO -VMName:$VMName
+        Add-VMDvdDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 0 -Path $coreosisoLocation
+    }
+}
+
+<#
+.SYNOPSIS
+    Remove the CoreosISO from a VM.
+#>
+Function RemoveCoreosISO {
+    [CmdletBinding()]
+    Param (
+        [Parameter (Mandatory=$true)]
+        [String] $VMName
+    )
+
+    BEGIN {
+        $coreosisoLocation = GetCoreosISO
+    }
+
+    PROCESS {
+        Get-VMDvdDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 0 | Remove-VMDvdDrive
+    }
+}
+
+<#
+.SYNOPSIS
+    Adds a new VM to the coreos cluster info.
+#>
+Function NewVMInCoreosClusterInfo {
+    [CmdletBinding()]
+    Param(
+        [Parameter (Mandatory=$true)]
+        [PSObject] $ClusterInfo,
+
+        [Parameter (Mandatory=$false)]
+        [String] $Config
+    )
+
+    PROCESS {
+        $VMNumber = ($ClusterInfo.VMs | Measure).Count + 1
+        $VMNumber_00 = $VMNumber.ToString("00")
+
+        $VMName = "$($ClusterInfo.Name)_$VMNumber_00"
+        $ConfigTemplate = $null
+
+        if ($Config) {
+            if (Test-Path $Config) {
+                $ConfigTemplate = "template_$VMNumber_00.yaml"
+                $ConfigTemplatePath = Join-Path -Path (GetCoreosClusterDirectory -ClusterName:$($ClusterInfo.Name)) $ConfigTemplate
+
+                Copy-Item $Config $ConfigTemplatePath
+            } else {
+                throw ("Config $Config not found.")
+            }
+        } elseif ($ClusterInfo.Config.DefaultConfigTemplate) {
+            $ConfigTemplate = $ClusterInfo.Config.DefaultConfigTemplate
+        }
+
+        $VM = New-Object PSObject
+        $VM | Add-Member Name $VMName
+        $VM | Add-Member Number $VMNumber
+        $VM | Add-Member Number_00 $VMNumber_00
+        $VM | Add-Member State "Queued"
+        if ($ConfigTemplate) {
+            $VM | Add-Member ConfigTemplate $ConfigTemplate
+        }
+
+        $ClusterInfo.VMs += $VM
+    }
+}
+
+<#
+.SYNOPSIS
+    Takes in a cluster info and takes necessary steps to build the cluster vms.
+#>
+Function CoreosClusterVMWorker {
+    [CmdletBinding()]
+    Param(
+        [Parameter (Mandatory=$true)]
+        [PSObject] $ClusterInfo
+    )
+
+    PROCESS {
+        $ClusterFilesDirectory = GetCoreosClusterDirectory -ClusterName $ClusterInfo.Name
+        $NetworkSwitchNames = @()
+        $ClusterInfo.Config.Networks | foreach { $NetworkSwitchNames += $_.SwitchName }
+
+        # Create the config files for the VMs
+        if (($ClusterInfo.VMs | where { $_.State -eq "Queued" } | Measure).Count -gt 0) {
+            Write-Verbose "Creating the Config Files for the VMs."
+
+            $ClusterInfo.VMs | where { $_.State -eq "Queued" -and $_.ConfigTemplate -and -not $_.Config} | foreach {
+                $ConfigTemplatePath = Join-Path -Path $ClusterFilesDirectory $_.ConfigTemplate
+                $Config = "config_$($_.Number_00).yaml"
+                $ConfigPath = Join-Path -Path $ClusterFilesDirectory $Config
+                New-CoreosConfig -Path:$ConfigTemplatePath -Destination:$ConfigPath -VMName:$_.Name -ClusterName:$ClusterInfo.Name -VMNumber:$_.Number -EtcdDiscoveryToken:$ClusterInfo.Config.EtcdDiscoveryToken | Out-Null
+
+                $_ | Add-Member Config $Config
+            }
+
+            OutCoreosClusterInfo -ClusterInfo $ClusterInfo
+
+            # Create the VM
+            Write-Verbose "Creating the VMs."
+            $ClusterInfo.VMs | where { $_.State -eq "Queued" } | foreach {
+                $VMName = $_.Name
+                $vhdLocation = "$((Get-VMHost).VirtualHardDiskPath)\$VMName.vhd"
+
+                # Create the VM
+                $vm = New-VM -Name $VMName -MemoryStartupBytes 1024MB -NoVHD -Generation 1 -BootDevice CD -SwitchName $NetworkSwitchNames[0]
+                $vm | Set-VMMemory -DynamicMemoryEnabled:$true
+                $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $VMName -SwitchName $_ } | Out-Null
+                $vhd = New-VHD -Path $vhdLocation -SizeBytes 10GB
+
+                Add-VMHardDiskDrive -VMName $VMName -ControllerType IDE -ControllerNumber 0 -ControllerLocation 0 -Path $vhd.Path
+                
+                $_.State = "ReadyForInstall"
+            }
+
+            OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        }
+
+        if (($ClusterInfo.VMs | where { $_.State -eq "ReadyForInstall" } | Measure).Count -gt 0) {
+            Write-Verbose "Installing Coreos on VMs."
+
+            # Add Coreos Image and config to VM
+            $ClusterInfo.VMs | where { $_.State -eq "ReadyForInstall" } | foreach {
+                AddCoreosISO -VMName:$_.Name
+                if ($_.Config) { AddDynamicRun -VMName:$_.Name -ClusterName:$ClusterInfo.Name -Config:$_.Config -Install }
+                else { AddDynamicRun -VMName:$_.Name -ClusterName:$ClusterInfo.Name -Install }
+
+                Start-VM -VMName $_.Name
+                $_.State = "Installing"
+            }
+
+            OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        }
+
+        $Count = ($ClusterInfo.VMs | where { $_.State -eq "Installing" } | Measure).Count
+        if ($Count -gt 0) {
+            $timeout = GetInstallTimeout
+            $timeout = $timeout + ($timeout/20)*$Count
+            for ($i=1; $i -le $timeout; $i++) {
+                Start-Sleep -s 1
+                Write-Progress -Activity "Installing coreos to $Count VMs in Cluster $Name" -SecondsRemaining $($timeout - $i)
+            }
+
+            $ClusterInfo.VMs | where { $_.State -eq "Installing" } | foreach {
+                Stop-VM -VMName $_.Name -TurnOff | Out-Null
+                RemoveCoreosISO -VMName:$_.Name
+                RemoveDynamicRun -VMName:$_.Name
+
+                $_.State = "Installed"
+            }
+
+            OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        }
+
+        if (($ClusterInfo.VMs | where { $_.State -eq "Installed" } | Measure).Count -gt 0) {
+            Write-Verbose "Tidying up after install."
+
+            $ClusterInfo.VMs | Where { $_.State -eq "Installed" } | foreach {                
+                Remove-VMNetworkAdapter -VMName:$_.Name
+                Start-VM -VMName:$_.Name | Out-Null
+            }
+
+            $timeout = 60
+            for ($i=1; $i -le $timeout; $i++) {
+                Start-Sleep -s 1
+                Write-Progress -Activity "Starting the VMs quickly so the configuration is properly loaded." -SecondsRemaining $($timeout - $i)
+            }
+
+            $ClusterInfo.VMs | Where { $_.State -eq "Installed" } | foreach {                
+                $VMName = $_.Name
+                Stop-VM -VMName:$VMName | Out-Null
+                $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $VMName -SwitchName $_ } | Out-Null
+            }
+
+            $ClusterInfo.VMs | Where { $_.State -eq "Installed" } | foreach {                
+                $_.State = "Completed"
+            }
+
+            OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        }
+
+        # Remove and VMs with the State Remove
+        if (($ClusterInfo.VMs | where { $_.State -eq "Remove" } | Measure).Count -gt 0) {
+            Write-Verbose "Removing VMS"
+
+            $ClusterInfo.VMs | Where { $_.State -eq "Remove" } | foreach {
+                $vhdPaths = (Get-VMHardDiskDrive -VMName $_.Name).Path
+                Get-VMHardDiskDrive -VMName $_.Name | Remove-VMHardDiskDrive
+                $vhdPaths | Remove-Item -Force
+
+                Remove-VM -VMName $_.Name
+                $_.State = "Removed"
+            }
+
+            OutCoreosClusterInfo -ClusterInfo:$ClusterInfo
+        }
+    }
+}
+
+############################
+### Independent Functions ##
+############################
 Function GetDateTimeStamp {
     [CmdletBinding()]
     Param (        
     )
 
-    BEGIN {}
-
     PROCESS {
         Get-Date -UFormat "%Y_%m_%d_%H_%M_%S" | Write-Output
     }
-
-    END {}
 }
 
 Function GetModuleFilesDirectory {
@@ -401,13 +510,9 @@ Function GetModuleFilesDirectory {
     Param (        
     )
 
-    BEGIN {}
-
     PROCESS {
         $MyInvocation.MyCommand.Module.FileList[0] | Write-Output
     }
-
-    END {}
 }
 
 <#
@@ -431,8 +536,6 @@ Function GetCoreosISO {
 
         Get-Item $path
     }
-
-    END {}
 }
 
 <#
@@ -451,8 +554,6 @@ Function GetDynamicrunISO {
     PROCESS {
         Get-Item $path
     }
-
-    END {}
 }
 
 <#
@@ -471,8 +572,6 @@ Function GetDynamicrunInstallFolder {
     PROCESS {
         Get-Item $path
     }
-
-    END {}
 }
 
 <#
@@ -491,8 +590,6 @@ Function GetDynamicrunReconfigureFolder {
     PROCESS {
         Get-Item $path
     }
-
-    END {}
 }
 
 <#
@@ -504,8 +601,6 @@ Function GetInstallTimeout {
     Param (
     )
 
-    BEGIN {}
-
     PROCESS {
         if ($env:COREOS_HYPERV_INSTALL_TIMEOUT) {
             Write-Output $env:COREOS_HYPERV_INSTALL_TIMEOUT
@@ -513,8 +608,36 @@ Function GetInstallTimeout {
             Write-Output 180
         }
     }
+}
 
-    END {}
+<#
+.SYNOPSIS
+    Gets the clusters directory storing metadata about the clusters.
+#>
+Function GetCoreosClustersDirectory {
+    [CmdletBinding()]
+    Param (
+    )
+
+    PROCESS {
+        Join-Path -Path $(Get-CoreosFilesDirectory) "Clusters"
+    }
+}
+
+<#
+.SYNOPSIS
+    Gets the cluster directory storing metadata about the cluster.
+#>
+Function GetCoreosClusterDirectory {
+    [CmdletBinding()]
+    Param (
+        [Parameter (Mandatory=$true)]
+        [String] $ClusterName
+    )
+
+    PROCESS {
+        Join-Path -Path $(GetCoreosClustersDirectory) $ClusterName
+    }
 }
 
 <#
@@ -527,68 +650,46 @@ Function TestIsAdmin {
 
 <#
 .SYNOPSIS
-    Adds the CoreosISO to a VM.
+    Outputs a file with Unix line endings.
 #>
-Function AddCoreosISO {
+Function Out-UnixFile {
     [CmdletBinding()]
     Param (
+        [Parameter (Mandatory=$true, ValueFromPipeline=$true)]
+        $Content,
+
         [Parameter (Mandatory=$true)]
-        [String] $VMName
+        $Path
     )
 
     BEGIN {
-        $coreosisoLocation = GetCoreosISO
-    }
-
-    PROCESS {        
-        RemoveCoreosISO -VMName:$VMName
-        Add-VMDvdDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 0 -Path $coreosisoLocation
-    }
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Remove the CoreosISO from a VM.
-#>
-Function RemoveCoreosISO {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [String] $VMName
-    )
-
-    BEGIN {
-        $coreosisoLocation = GetCoreosISO
+        $str = ""
     }
 
     PROCESS {
-        Get-VMDvdDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 0 | Remove-VMDvdDrive
+        $str += $Content + "`n"
     }
 
-    END {}
+    END {
+        [System.IO.File]::WriteAllText($Path,$str,[System.Text.Encoding]::ASCII)
+    }
 }
 
 <#
 .SYNOPSIS
-    Determine if a set of configs need an etcd token.
+    Write Coroes Cluster Info to file
 #>
-Function TestEtcdTokenRequired {
+Function OutCoreosClusterInfo {
     [CmdletBinding()]
     Param(
-        [Parameter (Mandatory=$true, ParameterSetName="SingleConfig")]
-        [string] $Config,
-
-        [Parameter (Mandatory=$true, ParameterSetName="MultipleConfigs")]
-        [String[]] $Configs
+        [Parameter (Mandatory=$true)]
+        [PSObject] $ClusterInfo
     )
 
-    BEGIN {}
-
-    PROCESS { Write-Output $true }
-
-    END {}
+    PROCESS {
+        $outFile = "$(GetCoreosClustersDirectory)\$($ClusterInfo.Name)\cluster-info.json"
+        $ClusterInfo | ConvertTo-Json -depth 4 | Out-File $outFile -Force
+    }
 }
 
 ############################
@@ -624,19 +725,20 @@ Function AddDynamicRun {
     }
 
     PROCESS {
-
-        $drvhdlocation = Join-Path -Path $(Get-CoreosFilesDirectory) "$ClusterName\tmp\$VMName.vhdx"
+        $drvhdlocation = Join-Path -Path $(GetCoreosClustersDirectory) "$ClusterName\tmp\$VMName.vhdx"
         if (!(Test-Path(Split-Path -parent $drvhdlocation))) {
-            New-Item (Split-Path -parent $drvhdlocation) -Type directory
+            New-Item (Split-Path -parent $drvhdlocation) -Type directory | Out-Null
         }
 
         # Create the vhd with the dynamic run configuration
         $vhd = New-VHD -Path $drvhdlocation -Dynamic -SizeBytes 100MB | Mount-VHD -Passthru | Initialize-Disk -PartitionStyle MBR -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -FileSystem FAT -Confirm:$false -Force
         Start-Sleep -s 1
 
-        if ($Install) { & cmd /C "copy $(GetDynamicrunInstallFolder)\** $($vhd.DriveLetter):\" | Out-Null }
-        if ($Reconfigure) { & cmd /C "copy $(GetDynamicrunReconfigureFolder))\** $($vhd.DriveLetter):\" | Out-Null }
-        if ($Config) { & cmd /C "copy $Config $($vhd.DriveLetter):\cloud-config.yaml" | Out-Null }
+        if ($Config) { $configPath = Join-Path -Path $(GetCoreosClusterDirectory -ClusterName $ClusterName) $Config }
+
+        if ($Install) { & cmd /C "copy `"$(GetDynamicrunInstallFolder)\**`" $($vhd.DriveLetter):\" | Out-Null }
+        if ($Reconfigure) { & cmd /C "copy `"$(GetDynamicrunReconfigureFolder))\**`" $($vhd.DriveLetter):\" | Out-Null }
+        if ($Config) { & cmd /C "copy `"$configPath`" $($vhd.DriveLetter):\cloud-config.yaml" | Out-Null }
 
         Dismount-VHD $drvhdlocation
 
@@ -646,8 +748,6 @@ Function AddDynamicRun {
         Add-VMDvdDrive -VMName $VMName -ControllerNumber 0 -ControllerLocation 1 -Path $drisoLocation
         Add-VMHardDiskDrive -VMName $VMName -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1 -Path $drvhdlocation
     }
-
-    END {}
 }
 
 <#
@@ -660,61 +760,17 @@ Function RemoveDynamicRun {
         [String] $VMName
     )
 
-    BEGIN {}
-
     PROCESS {
-        Stop-VM -VMName $VMName -TurnOff | Out-Null
+        if ((Get-VM -VMName $VMName).State -ne "Off") {
+            Stop-VM -VMName $VMName -TurnOff | Out-Null
+        }
 
-        $dynamicrunVhd = (Get-VMHardDiskDrive -VMName -ControllerNumber 1 -ControllerLocation 1)
+        $dynamicrunVhd = (Get-VMHardDiskDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 1).Path
         Get-VMDvdDrive -VMName $VMName -ControllerNumber 0 -ControllerLocation 1 | Remove-VMDvdDrive
         Get-VMHardDiskDrive -VMName $VMName -ControllerType IDE -ControllerNumber 1 -ControllerLocation 1 | Remove-VMHardDiskDrive
 
-        if ($dynamicrunVhd -and (Test-Path($dynamicrunVhd.Path))) {
-            Remove-Item $dynamicrunVhd.Path -Force
+        if ($dynamicrunVhd -and (Test-Path($dynamicrunVhd))) {
+            Remove-Item $dynamicrunVhd -Force
         }
     }
-
-    END {}
-}
-
-
-<#
-.SYNOPSIS
-    Currently experiencing an issue on first boot for coreos vms getting the correct network config. This function takes away the network adapters and starts the vm.
-    It then turns off the VM and readds the network adapters. This allows the config to be loaded properly.
-#>
-Function PreStartCoreosVM {
-    [CmdletBinding()]
-    Param(
-        [Parameter (Mandatory=$true)]
-        [String] $VMName,
-
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {}
-
-    END {}
-}
-
-<#
-.SYNOPSIS
-    Currently experiencing an issue on first boot for coreos vms getting the correct network config. This function takes away the network adapters and starts the vm.
-    It then turns off the VM and readds the network adapters. This allows the config to be loaded properly.
-#>
-Function PreStartCoreosCluster {
-    [CmdletBinding()]
-    Param(
-        [Parameter (Mandatory=$true)]
-        [String] $ClusterName
-    )
-
-    BEGIN {}
-
-    PROCESS {}
-
-    END {}
 }
