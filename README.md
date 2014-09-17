@@ -55,7 +55,7 @@ It is also good to ssh into the VMs and check if the cluster vms are talking to 
 
 ## Configuration ##
 ### General Configuration ###
-I have included some basic template replacement keys for generating configs. This should make it easier to create configurations that can be used serveral times without having to make changes to the config file everytime.
+Included in the script are some basic template replacement handles to ease the generation of config files. This should make it easier to create configurations that can be used serveral times without having to make changes to the config file everytime.
 
 The Handles that are available are listed here.
 

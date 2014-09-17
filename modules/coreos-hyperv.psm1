@@ -277,7 +277,7 @@ Function New-CoreosConfig {
 
             if ($Network.RangeStartIP) {
                 $OffsetIP = Get-OffsetIPAddress -RangeStartIP $Network.RangeStartIP -Count $VMNumber
-                $ReplaceText = "{{IP_ADDRESS\[NET_$($i)]}}"
+                $ReplaceText = "{{IP_ADDRESS\[NETi_$($i)]}}"
                 $cfg = $cfg | foreach { $_ -replace $ReplaceText, $OffsetIP }
             }
 
