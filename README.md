@@ -1,46 +1,112 @@
 coreos-hyperv
 =============
 
-A repository with some basic scripts to set up coreos hypev clusters.
+Bootstrap a coreos cluster on Hyper-V.
 
-## How to use ##
 ### Prerequisites ###
 Windows 8.1 and Hyper-V turned on.
-Internet Connection
-At least one virtual switch created in hyper-v
+Internet Connection.
+At least one virtual switch created in hyper-v.
 
-### Create a simple cluster with no config ###
-From an Admin Powershell Window import the powershell module `Import-Module coreos-hyperv.psm1`
+## Installation ##
+There are two options for installing the module and Importing it.
 
-Run the command `New-CoreosCluster -Name:"Coreos-Cluster1" -NetworkSwitchNames:"External Virtual Switch 1" -Count:3 -InstallInParallel:$true` 
+### Clone anywhere ###
+From powershell run the following:
 
-This will install 3 vms in a cluster. However without a config it isn't much use as you won't have set any credentials to actually use the machines. See some of the sample configs to get up and running with a useable cluster.
+```
+git clone https://github.com/paulshir/coreos-hyperv
+Import-Module .\coreos-hyperv\coreos-hyperv.psd1
+```
 
-## Auto Install Process ##
-The auto install process works by doing the following. I didn't have an easy way to create iso's with powershell so I created a generic one which calls a script on boot.
-1. Creating a new vm with the following:
-    a. coreos iso as boot device
-    b. vhd for the installation
-    c. dynamicrun iso with config-2 label
-    d. dynamicrun vhdx with install script and cloud configs
+### Clone to PSModule Path ###
+From powershell run the following:
+
+```
+git clone https://github.com/paulshir/coreos-hyperv "$($env:home)\Documents\WindowsPowershell\Modules\coreos-hyperv"
+Import-Module coreos-hyperv
+```
+
+## Create a basic cluster with a static network configuration ##
+To create a basic cluster with a static network configuration we can do the following. First we create the network config. The following is all run from an administrator powershell prompt.
+
+```
+$DNSServers = @('8.8.8.8', '8.8.4.4')
+$NetworkConfig = New-CoreosNetworkConfig -SwitchName 'External Virtual Switch 1' -Gateway '192.168.1.1' -SubnetBits 24 -RangeStartIP '192.168.1.200' -DNSServers $DNSServers
+```
+
+This creates a powershell variable with all the network info required to modify the configuration files with.
+
+The next thing you need to do is to add your ssh public key to the configuration. For this example we will be using the config/basiccluster_staticnetwork.yaml file. You can generate a key with puttygen and insert the public key into the config (line 5). Now with the network config and the config file ready we can create the cluster.
+
+```
+New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $network -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
+```
+
+All going well your cluster should now be up and running. It takes around 5 minutes to set up. I have found however that the network config doesn't always work on the first boot so you might need to restart the VMs. To do this you can run the following commands.
+
+```
+$cluster = Get-CoreosCluster -ClusterName coreos-basiccluster0
+$cluster | Stop-CoreosCluster
+$cluster | Start-CoreosCluster
+```
+
+It is also good to ssh into the VMs and check if the cluster vms are talking to each other. You can test this by running the command `etcdctl set /foo bar`. This command should fail if the cluster isn't working properly but if it works you can ssh into another VM and run `etcdctl get /foo` to see if it has propegated. The result should be `bar`
+
+## Configuration ##
+### General Configuration ###
+I have included some basic template replacement keys for generating configs. This should make it easier to create configurations that can be used serveral times without having to make changes to the config file everytime.
+
+The Handles that are available are listed here.
+
+`{{VM_NAME}}` The name of the vm.
+`{{VM_NUMBER}}` The number of the VM in the cluster
+`{{VM_NUMBER_00}}` The number of the VM prefixed with a 0 if it is less that 10.
+`{{CLUSTER_NAME}}` The name of the cluster.
+`{{ETCD_DISCOVERY_TOKEN}}` Each coreos cluster generates a discovery token. This can be added to the config here.
+
+### Network configuration ###
+In addition to the general configuration there is also the ability to configure network settings for multiple adapters.
+
+The following handles can be used for configuring networks where X is replaced with the index of the network settings. For example for the first network configuration X would be replaced with 0 and for the second network configuration X would be replaced with 1.
+
+`{{IP_ADDRESS[NET_X]}}` The IP Address for Network Config X. (IP Address is determined from the VM Number and the Start IP Address of the network config).
+`{{GATEWAY[NET_X]}}` The gateway for Network Config X.
+`{{DNS_SERVER_Y[NET_X]}}` The DNS Server Y for Network Config X. (Each DNS Server is represented by it's index Y).
+`{{SUBNET_BITS[NET_X]}}` The count of 1 bits in the subnet mask for Network Config X.
 
 ## Limitations ##
-### Unable to track install ###
-Currently I have no way of tracking the progress of the installation from powershell. I've set a hard time out which works if the install script works.
-It is advisable to check the install (when powershell starts the time remaining segement of the install.) by doing the following.
+### Tracking the install ###
+The coreos iso doesn't have hyper-v integration services installed so it is currently not possible to track the installation progress of the installation or retrieve the IP address assigned by dhcp to the VM(This is why acutally why I ended up writing this script and not using a Vagrant File witht the hyper-v provider for Vagrant).
 
-Open Hyper-V Manager
-Connect to a VM
-Enter the following command
-```
-systemctl status dynamicrun.service
-```
-If it has failed it will show the error messages in red. Otherwise it is installing. This command will show the output from the install.
+To ensure that the installation is running smoothly you can take the following steps.
 
-You can check the status of the network with `ifconfig`
+1. Open Hyper-V Manager.
+2. Connect to one of the created VMs.
+3. Enter the command `systemctl status dynamicrun-install.service`.
 
-### Static Networking doesn't work for installing a cluster in parallel ###
-If for some reason dhcp doesn't work in the install then you might need to configure a static network during the install. Currently there is no way to specify different IP addresses per vm in the cluster for the install so instead just run the cluster install not in parallel. This should prevent IP address clashes.
+This will show the status of the install process. If it hasn't run or failed it should be apparent.
 
-### Each install downloads the image ###
-It doens't take long to download so not that big of an issue.
+You can also see the network status with `ifconfig`
+
+### The auto install process ###
+The auto install process is a bit hacky. It works as following.
+
+1. Creates a VM and a VHD for installing coreos onto.
+2. Downloads and attaches the coreos iso as the boot device.
+3. Attaches a VHDX file that is created in the install process that has an installation script and the cloud-config for the installation available on it.
+4. Attaches an ISO labeled config2. Coreos automatically detects and runs this. This ISO is configured to call the installation script on the VHDX.
+
+## Troubleshooting ##
+### Issues with install ###
+If you run into any difficulty with the installed vms you can connect to the VMs and log into the vms by doing the following.
+
+1. Turn off the VM if it is already on.
+2. Open the Connect to window of the VM and turn on the VM.
+3. Press any key a few times to interupt the boot process.
+4. Type the command `boot_kernel coreos.autologin`
+
+This will boot the VM and will auto login so you can troubleshoot and debug the installation.
+
+### Modules Functions ###
+To see the functions of this powershell modules you can use the `Show-Command` powershell function. You can also find out how to use the functions using `Get-Help <Function Name>`. This will give you examples of how to use the functions.

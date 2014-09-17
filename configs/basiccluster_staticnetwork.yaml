@@ -1,0 +1,36 @@
+#cloud-config
+
+hostname: {{VM_NAME}}
+ssh_authorized_keys:
+  - ssh-rsa INSERT_PUBLIC_KEY_HERE
+coreos:
+  etcd:
+    name: {{VM_NAME}}
+    discovery: {{ETCD_DISCOVERY_TOKEN}}
+    addr: {{IP_ADDRESS[NET_0]}}:4001
+    peer-addr: {{IP_ADDRESS[NET_0]}}:7001
+  fleet:
+    public-ip: {{IP_ADDRESS[NET_0]}}
+    metadata: cluster={{CLUSTER_NAME}}
+  units:
+    - name: static.network
+      command: start
+      content: |
+        [Match]
+        Name=eth0
+
+        [Network]
+        Address={{IP_ADDRESS[NET_0]}}/{{SUBNET_BITS[NET_0]}}
+        DNS={{DNS_SERVER_0[NET_0]}}
+        DNS={{DNS_SERVER_1[NET_0]}}
+        Gateway={{GATEWAY[NET_0]}}
+    - name: etcd.service
+      command: start
+    - name: fleet.service
+      command: start
+    - name: docker.service
+      command: start
+  update:
+    reboot-strategy: etcd-lock
+    group: alpha
+manage_etc_hosts: localhost
