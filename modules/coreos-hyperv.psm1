@@ -505,8 +505,13 @@ Function Invoke-CoreosClusterBuilder {
                 $VMName = $_.Name
                 $vhdLocation = "$((Get-VMHost).VirtualHardDiskPath)\$VMName.vhd"
 
-                # Create the VM
-                $vm = New-VM -Name $VMName -MemoryStartupBytes 1024MB -NoVHD -Generation 1 -BootDevice CD -SwitchName $NetworkSwitchNames[0]
+                # Create the VM - Windows 2012 doesn't support -Generation
+                if ((Get-WmiObject Win32_OperatingSystem).Version -ge 6.3) {
+                    # Windows 6.3 and higher = 2012 R2 + 81. http://msdn.microsoft.com/en-us/library/windows/desktop/ms724832(v=vs.85).aspx
+                    $vm = New-VM -Name $VMName -MemoryStartupBytes 1024MB -NoVHD -Generation 1 -BootDevice CD -SwitchName $NetworkSwitchNames[0]
+                } else {
+                    $vm = New-VM -Name $VMName -MemoryStartupBytes 1024MB -NoVHD -BootDevice CD -SwitchName $NetworkSwitchNames[0]
+                }
                 $vm | Set-VMMemory -DynamicMemoryEnabled:$true
                 $NetworkSwitchNames | Select-Object -Skip 1 | foreach { Add-VMNetworkAdapter -VMName $VMName -SwitchName $_ } | Out-Null
                 $vhd = New-VHD -Path $vhdLocation -SizeBytes 10GB
