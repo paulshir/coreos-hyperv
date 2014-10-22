@@ -4,6 +4,11 @@
 <#
 .SYNOPSIS
     Gets a coreos files directory.
+.DESCRIPTION
+    Gets the directory that information about coreos clusters and the virtual machines,
+    and other files in relation to cluster generation are stored.
+.OUTPUTS
+    Returns the directory object where the files are stored.
 #>
 Function Get-CoreosFilesDirectory {
     [CmdletBinding()]

@@ -34,3 +34,9 @@ coreos:
     reboot-strategy: etcd-lock
     group: alpha
 manage_etc_hosts: localhost
+write_files:
+  - path: /etc/environment
+    permissions: 0644
+    content: |
+      COREOS_PUBLIC_IPV4={{IP_ADDRESS[NET_0]}}
+      COREOS_PRIVATE_IPV4={{IP_ADDRESS[NET_0]}}

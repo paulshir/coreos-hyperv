@@ -4,6 +4,22 @@
 <#
 .SYNOPSIS
     Creates and installs coreos on a cluster of virtual machines.
+.DESCRIPTION
+    Creates and installs coreos on a cluster of virtual machines.
+.PARAMETER Name
+    The Name of the Cluster.
+.PARAMETER Count
+    The number of VMs in the cluster.
+.PARAMETER NetworkConfigs
+    An array of objects that contain information on the hyper-v virtual switch and settings for the network. 
+    These configs can easily be created using the New-CoreosNetworkConfig function.
+.PARAMETER Config
+    Set a default config to be applied for all clusters.
+.PARAMETER Configs
+    Instead of setting a default config you can set a config for each machine individually. The count of configs
+    must match the count of VMs being created in the cluster.
+.OUTPUTS
+    Outputs a ClusterInfo object with information about the cluster, the configuration and the virtual machines.
 #>
 Function New-CoreosCluster {
     [CmdletBinding()]
@@ -84,6 +100,13 @@ Function New-CoreosCluster {
 <#
 .SYNOPSIS
     Removes a cluster of coreos virtual machines and associated files.
+.DESCRIPTION
+    Removes a cluster of coreos virtual machines and associated files.
+.PARAMETER ClusterInfo
+    Specifies which cluster to remove based on the cluster info object.
+    This can be piped from Get-ClusterInfo.
+.PARAMETER ClusterName
+    Specifies which cluster to remove based on the cluster name.
 #>
 Function Remove-CoreosCluster {
     [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
@@ -117,6 +140,12 @@ Function Remove-CoreosCluster {
 <#
 .SYNOPSIS
     Starts up a cluster of coreos virtual machines.
+.DESCRIPTION
+    Starts up all the virtual machines in a coreos cluster.
+.PARAMETER ClusterInfo
+    Specifies which cluster to start from the cluster info object.
+.PARAMETER ClusterName
+    Specifies which cluster to start from the name of the cluster.
 #>
 Function Start-CoreosCluster {
     [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
@@ -140,6 +169,12 @@ Function Start-CoreosCluster {
 <#
 .SYNOPSIS
     Stops a cluster of coreos virtual machines.
+.DESCRIPTION
+    Stops a cluster of coreos virtual machines.
+.PARAMETER ClusterInfo
+    Specifies which cluster to stop from the cluster info object.
+.PARAMETER ClusterName
+    Specifies which cluster to stop from the name of the cluster.
 #>
 Function Stop-CoreosCluster {
     [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
@@ -163,6 +198,13 @@ Function Stop-CoreosCluster {
 <#
 .SYNOPSIS
     Gets a cluster of coreos virtual machines.
+.DESCRIPTION
+    Gets a cluster of coreos virtual machines. This returns a ClusterInfo Object.
+    The ClusterInfo object can be piped to other commands.
+.PARAMETER ClusterName
+    The name of the cluster to get the info for.
+.OUTPUTS
+    Outputs a ClusterInfo object with information about the cluster, the configuration and the virtual machines.
 #>
 Function Get-CoreosCluster {
     [CmdletBinding()]
@@ -185,12 +227,19 @@ Function Get-CoreosCluster {
 ############################
 ### Manage VM Functions ####
 ############################
-############################
-# Manage Cluster Functions #
-############################
 <#
 .SYNOPSIS
-    Creates and installs coreos on a cluster of virtual machines.
+    Creates and installs a coreos virtual machine in a coreos cluster.
+.DESCRIPTION
+    Creates and installs a coreos virtaul machine in a coreos cluster.
+    Applies the same values to the config as were applied to the other virtual machines in the cluster.
+.PARAMETER ClusterName
+    The name of the cluster to add the new vm to.
+.PARAMETER Config
+    The path to the config file to use for this VM. If no config file is specified then the default config file for the
+    cluster will be used.
+.OUTPUTS
+    Outputs an updated ClusterInfo object with information about the cluster, the configuration and the virtual machines.
 #>
 Function New-CoreosVM {
     [CmdletBinding()]
@@ -228,7 +277,37 @@ Function New-CoreosVM {
 ############################
 <#
 .SYNOPSIS
-    Creates a config file witht the coreos settings.
+    Creates a config file with the coreos settings.
+.DESCRIPTION
+    Outputs a config file with the specified settings based on a template config.
+.PARAMETER Path
+    The path to the config file.
+.PARAMETER Destination
+    The path to output the config file to.
+.PARAMETER VMName
+    The name of the VM the config should have.
+    {{VM_NAME}} will be replaced in the template config file with this value.
+.PARAMETER VMNumber
+    The number of the VM in the Cluster (Starting at 0).
+    {{VM_NUMBER}} will be replaced in the template config file with this value.
+    This value will also be used in the assigning of IP Addresses for network config.
+.PARAMETER EtcdDiscoveryToken
+    The etcd discovery used so that machines can all join the same cluster.
+    {{ETCD_DISCOVERY_TOKEN}} will be replaced in the template config with this value.
+.PARAMETER ClusterName
+    The name of the cluster the virtual machine is in.
+    {{CLUSTER_NAME}} will be replaced in the template config with this value.
+.PARAMETER NetworkConfigs
+    This in an array of Network Config Objects. For each network config certain values will be
+    replaced in the template config.
+    {{IP_ADDRESS[NET_0]}} will be replaced with the calculated IP address from the VM Number and the
+    starting IP address of NetworkConfig[0]
+    {{GATEWAY[NET_0]}} will be replaced in the template config with the gateway for the first network config.
+    {{DNS_SERVER_0[NET_0]}} will be replaced in the template config with the first DNS Server in the first network config.
+    Multiple DNS Servers can be added as needed.
+    {{SUBNET_BITS[NET_0]}} will be replaced in the template config with the number of bits in the subnet for the first network.
+.OUTPUTS
+    The path that the destination file was saved to.
 #>
 Function New-CoreosConfig {
     [CmdletBinding()]
@@ -307,7 +386,19 @@ Function New-CoreosConfig {
 
 <#
 .SYNOPSIS
-    Gets a coreos virtual machine.
+    Create a coreos network config.
+.DESCRIPTION
+    A method that makes it easy to create a network config that can be used in the creation of coreos clusters.
+.PARAMETER SwitchName
+    The Hyper-V virtual switch to use for this network config.
+.PARAMETER RangeStartIP
+    The starting IP address to be used in the cluster.
+.PARAMETER Gateway
+    The network gateway that can be assigned to clusters.
+.PARAMETER SubnetBits
+    The number of bits in the subnet mask for the configuration.
+.PARAMETER DNSServers
+    An array of DNS Servers to use for the config.
 #>
 Function New-CoreosNetworkConfig {
     [CmdletBinding()]
@@ -665,7 +756,7 @@ Function Add-DynamicRun {
 
 <#
 .SYNOPSIS
-    Removes the files from the vm created to automatically install or configure the vm so that it can be used.
+    Removes the files from the vm created that automatically install or configure.
 #>
 Function Remove-DynamicRun {
     [CmdletBinding()]
