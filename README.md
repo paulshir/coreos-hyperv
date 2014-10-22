@@ -108,9 +108,6 @@ If you run into any difficulty with the installed vms you can connect to the VMs
 
 This will boot the VM and will auto login so you can troubleshoot and debug the installation.
 
-### Format Disk Popup ###
-When the script is running you might see a popup saying format disk. You can press cancel on this message. This occurs because the script creates a VHDX file and mounts it on the host. It then formats and copies the config files onto it. This can cause the popup to appear as when the disk is mounted it isn't formatted at the time.
-
 ### Networking ###
 I've found the easiest way for networking is to set up a seperate VM to act as a NAT. To do this you can use something like Windows Server or ClearOS. This way you have more control over what ip addresses your VMS are assigned etc. This means that even if you are on different networks (i.e. when you are on a laptop) the connections and cluster will remain working.
 

@@ -735,7 +735,8 @@ Function Add-DynamicRun {
         }
 
         # Create the vhd with the dynamic run configuration
-        $vhd = New-VHD -Path $drvhdlocation -Dynamic -SizeBytes 100MB | Mount-VHD -Passthru | Initialize-Disk -PartitionStyle MBR -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -FileSystem FAT -Confirm:$false -Force
+        $vhd = New-VHD -Path $drvhdlocation -Dynamic -SizeBytes 100MB | Mount-VHD -Passthru | Initialize-Disk -PartitionStyle MBR -PassThru | New-Partition -AssignDriveLetter:$false -UseMaximumSize | Format-Volume -FileSystem FAT -Confirm:$false -Force | Get-Partition | Add-PartitionAccessPath -AssignDriveLetter -PassThru | Get-Volume
+
         Start-Sleep -s 1
 
         if ($Config) { $configPath = Join-Path -Path $(Get-CoreosClusterDirectory -ClusterName $ClusterName) $Config }
