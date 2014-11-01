@@ -4,7 +4,7 @@ coreos-hyperv
 Bootstrap a coreos cluster on Hyper-V.
 
 ### Prerequisites ###
-Windows 8.1 or Windows Server 2012 R2 and Hyper-V turned on. Windows 8 and Windows Server 2012 should also work.  
+Windows 8.1 or Windows Server 2012 R2 and Hyper-V turned on. Although the script will work in Windows 8 and Windows Server 2012 coreos doesn't seem to work on Hyper-V on those platforms at the moment.  
 Internet Connection.  
 At least one virtual switch created in hyper-v.  
 
