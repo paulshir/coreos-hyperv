@@ -61,21 +61,21 @@ Included in the script are some basic template replacement handles to ease the g
 
 The Handles that are available are listed here.
 
-`{{VM_NAME}}` The name of the vm.
-`{{VM_NUMBER}}` The number of the VM in the cluster
-`{{VM_NUMBER_00}}` The number of the VM prefixed with a 0 if it is less that 10.
-`{{CLUSTER_NAME}}` The name of the cluster.
-`{{ETCD_DISCOVERY_TOKEN}}` Each coreos cluster generates a discovery token. This can be added to the config here.
+`{{VM_NAME}}` The name of the vm.  
+`{{VM_NUMBER}}` The number of the VM in the cluster.  
+`{{VM_NUMBER_00}}` The number of the VM prefixed with a 0 if it is less that 10.  
+`{{CLUSTER_NAME}}` The name of the cluster.  
+`{{ETCD_DISCOVERY_TOKEN}}` Each coreos cluster generates a discovery token. This can be added to the config here.  
 
 ### Network configuration ###
 In addition to the general configuration there is also the ability to configure network settings for multiple adapters.
 
 The following handles can be used for configuring networks where X is replaced with the index of the network settings. For example for the first network configuration X would be replaced with 0 and for the second network configuration X would be replaced with 1.
 
-`{{IP_ADDRESS[NET_X]}}` The IP Address for Network Config X. (IP Address is determined from the VM Number and the Start IP Address of the network config).
-`{{GATEWAY[NET_X]}}` The gateway for Network Config X.
-`{{DNS_SERVER_Y[NET_X]}}` The DNS Server Y for Network Config X. (Each DNS Server is represented by it's index Y).
-`{{SUBNET_BITS[NET_X]}}` The count of 1 bits in the subnet mask for Network Config X.
+`{{IP_ADDRESS[NET_X]}}` The IP Address for Network Config X. (IP Address is determined from the VM Number and the Start IP Address of the network config).  
+`{{GATEWAY[NET_X]}}` The gateway for Network Config X.  
+`{{DNS_SERVER_Y[NET_X]}}` The DNS Server Y for Network Config X. (Each DNS Server is represented by it's index Y).  
+`{{SUBNET_BITS[NET_X]}}` The count of 1 bits in the subnet mask for Network Config X.  
 
 ## Limitations ##
 ### Tracking the install ###
@@ -118,4 +118,4 @@ The installation script requires DHCP to work during installation. Coreos needs 
 There seems to be sometimes an issue on first boot of the static network config not being applied. Usually a reboot of the VMS fixes this.
 
 ### Modules Functions ###
-To see the functions of this powershell modules you can use the `Show-Command` powershell function. You can also find out how to use the functions using `Get-Help <Function Name>`. This will give you examples of how to use the functions.
+To see the functions of this powershell modules you can use the `Show-Command` powershell function. You can also find out how to use the functions using `Get-Help <Function Name>`. This will give you a description on all the parameters and options for the functions.
