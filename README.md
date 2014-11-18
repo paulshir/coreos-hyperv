@@ -42,7 +42,7 @@ This creates a powershell variable with all the network info required to modify 
 The next thing you need to do is to add your ssh public key to the configuration. For this example we will be using the config/basiccluster_staticnetwork.yaml file. You can generate a key with puttygen and insert the public key into the config (line 5). Now with the network config and the config file ready we can create the cluster.
 
 ```
-New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $network -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
+New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $NetworkConfig -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
 ```
 
 All going well your cluster should now be up and running. It takes around 5 minutes to set up. I have found however that the network config doesn't always work on the first boot so you might need to restart the VMs. To do this you can run the following commands.
