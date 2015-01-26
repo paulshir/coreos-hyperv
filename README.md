@@ -1,6 +1,8 @@
 coreos-hyperv
 =============
 
+Please note that I will updating this script over the next little while to use the vhd images created by coreos for Hyper-V. This will make the install process a lot simpler than it currently is and a lot less error prone (also a lot faster). The script will probably not be backwards compatible.
+
 Bootstrap a coreos cluster on Hyper-V.
 
 ### Prerequisites ###
