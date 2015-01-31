@@ -161,9 +161,26 @@ Function New-CoreosNetworkConfig {
 <#
 .SYNOPSIS
     Get a discovery token for etcd.
+.PARAMETER size
+    Sets the number etcd instances to be used in the quorom. Machines added outside of this
+    value will be proxy instances by default. See https://github.com/coreos/etcd for more information.
+    Setting the default value to 3 to match the website.
 #>
 Function New-EtcdDiscoveryToken {
-    $wr = Invoke-WebRequest -Uri "https://discovery.etcd.io/new"
+    Param(
+        [Parameter (Mandatory=$false)]
+        [Number] $Size = 3
+    )
+
+    if ($Size -gt 9) {
+        $Size = 9
+    }
+
+    if ($Size -le 0) {
+        $Size = 0
+    }
+
+    $wr = Invoke-WebRequest -Uri "https://discovery.etcd.io/new?size=$Size"
     Write-Output $wr.Content
 }
 

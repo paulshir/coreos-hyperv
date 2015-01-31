@@ -68,7 +68,7 @@ Function New-CoreosCluster {
         # Store the Cluster Config Info
         $ConfigInfo = New-Object PSObject
         $ConfigInfo | Add-Member Networks $NetworkConfigs
-        $ConfigInfo | Add-Member EtcdDiscoveryToken $(New-EtcdDiscoveryToken)
+        $ConfigInfo | Add-Member EtcdDiscoveryToken $(New-EtcdDiscoveryToken -Size $Count)
 
         if ($Config) {
             if (Test-Path $Config) {
