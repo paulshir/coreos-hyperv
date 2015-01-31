@@ -1,9 +1,7 @@
 coreos-hyperv
 =============
 
-This branch is the development of this script for the installation of coreos using coreos provided hyper-v vhds instead of installing from iso. This makes the install process much simpler and less error prone.
-
-Bootstrap a coreos cluster on Hyper-V.
+These are some basic functions to help bootstrap a coreos cluster on Hyper-V.
 
 ## Prerequisites ##
 Windows 8.1 or Windows Server 2012 R2 and Hyper-V turned on.   
