@@ -116,6 +116,10 @@ Function New-CoreosCluster {
     This can be piped from Get-ClusterInfo.
 .PARAMETER ClusterName
     Specifies which cluster to remove based on the cluster name.
+.NOTES
+    This function isn't working very well at the moment. It is deleting things but throws many errors.
+    Also it cannot be piped from Get-CoreosCluster as this takes a lock on the cluster file which this 
+    function tries to remove. You can save Get-CoreosCluster to a variable and pipe from the variable.
 #>
 Function Remove-CoreosCluster {
     [CmdletBinding(DefaultParameterSetName="ClusterInfo")]
@@ -131,9 +135,6 @@ Function Remove-CoreosCluster {
         if ($ClusterName) {
             $ClusterInfo = Get-CoreosCluster -ClusterName:$ClusterName
         }
-
-        # Call to ensure failed vms are marked.
-        Invoke-CoreosClusterBuilder -ClusterInfo:$ClusterInfo
 
         $ClusterInfo | Stop-CoreosCluster
         $ClusterInfo.VMs | foreach { $_.State = "Queued"; $_.Action = "Remove" }
