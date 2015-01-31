@@ -169,7 +169,7 @@ Function New-CoreosNetworkConfig {
 Function New-EtcdDiscoveryToken {
     Param(
         [Parameter (Mandatory=$false)]
-        [Number] $Size = 3
+        [Int] $Size = 3
     )
 
     if ($Size -gt 9) {
