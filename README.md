@@ -24,8 +24,7 @@ Import-Module coreos-hyperv
 To create a basic cluster with a static network configuration we can do the following. First we create the network config. The following is all run from an administrator powershell prompt.
 
 ```
-$DNSServers = @('8.8.8.8', '8.8.4.4')
-$NetworkConfig = New-CoreosNetworkConfig -SwitchName 'External Virtual Switch 1' -Gateway '192.168.1.1' -SubnetBits 24 -RangeStartIP '192.168.1.200' -DNSServers $DNSServers
+$NetworkConfig = New-CoreosNetworkConfig -SwitchName 'External Virtual Switch 1' -Gateway '192.168.1.1' -SubnetBits 24 -RangeStartIP '192.168.1.200' -DNSServers @('8.8.8.8', '8.8.4.4')
 ```
 
 This creates a powershell variable with all the network info required to modify the configuration files with.
@@ -44,7 +43,7 @@ $cluster | Stop-CoreosCluster
 $cluster | Start-CoreosCluster
 ```
 
-It is also good to ssh into the VMs and check if the cluster vms are talking to each other. You can test this by running the command `etcdctl set /foo bar`. This command should fail if the cluster isn't working properly but if it works you can ssh into another VM and run `etcdctl get /foo` to see if it has propegated. The result should be `bar`
+It is also good to ssh into the VMs and check if the cluster vms are talking to each other. You can test this by running the command `etcdctl set /foo bar`. This command should fail if the cluster isn't working properly but if it works you can ssh into another VM and run `etcdctl get /foo` to see if it has propagated. The result should be `bar`
 
 ## Configuration ##
 ### General Configuration ###
