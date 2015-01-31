@@ -11,19 +11,9 @@ Internet Connection.
 At least one virtual switch created in hyper-v.  
 [Bunzip for Windows](http://gnuwin32.sourceforge.net/packages/bzip2.htm) in your $PATH. This is used to decompress coreos images.
 
-(Although the script will work in Windows 8 and Windows Server 2012 coreos doesn't seem to work on Hyper-V on those platforms at the moment.)
+(Although the script will work in Windows 8 and Windows Server 2012 I haven't been able to test coreos running on those platforms. Some users have had issues running in the past but this might have changed now that coreos provides images for Hyper-v.)
 
 ## Installation ##
-There are two options for installing the module and Importing it.
-
-### Clone anywhere ###
-From powershell run the following:
-
-```
-git clone https://github.com/paulshir/coreos-hyperv
-Import-Module .\coreos-hyperv\coreos-hyperv.psd1
-```
-
 ### Clone to PSModule Path ###
 From powershell run the following:
 
@@ -45,7 +35,7 @@ This creates a powershell variable with all the network info required to modify 
 The next thing you need to do is to add your ssh public key to the configuration. For this example we will be using the config/basiccluster_staticnetwork.yaml file. You can generate a key with puttygen and insert the public key into the config (line 5). Now with the network config and the config file ready we can create the cluster.
 
 ```
-New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $NetworkConfig -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
+New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $NetworkConfig -Channel Alpha -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
 ```
 
 The following commands can now be used to stop and start a cluster.
@@ -60,7 +50,7 @@ It is also good to ssh into the VMs and check if the cluster vms are talking to 
 
 ## Configuration ##
 ### General Configuration ###
-Included in the script are some basic template replacement handles to ease the generation of config files. This should make it easier to create configurations that can be used serveral times without having to make changes to the config file everytime.
+Included in the script are some basic template replacement handles to ease the generation of config files. This should make it easier to create configurations that can be used across multiple machines.
 
 The Handles that are available are listed here.
 
@@ -82,7 +72,7 @@ The following handles can be used for configuring networks where X is replaced w
 
 ## Troubleshooting ##
 ### Networking ###
-I've found the easiest way for networking is to set up a seperate VM to act as a NAT. To do this you can use something like Windows Server or ClearOS. This way you have more control over what ip addresses your VMS are assigned etc. This also means that even if you are on different networks (i.e. when you are on a laptop in a different location) the connections and cluster will remain working.
+I've found the easiest way for networking is to set up a seperate VM to act as a NAT. To do this you can use something like Windows Server or ClearOS. This way you have more control over what ip addresses your VMS are assigned etc. This also means that even if you are on different networks (i.e. when you are on a laptop in a different location) the connections and cluster will continue to work.
 
 ### Modules Functions ###
 To see the functions of this powershell modules you can use the `Show-Command` powershell function. You can also find out how to use the functions using `Get-Help <Function Name>`. This will give you a description on all the parameters and options for the functions.
