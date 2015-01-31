@@ -56,101 +56,6 @@ Function Get-ModuleFilesDirectory {
 
 <#
 .SYNOPSIS
-    Get the coreos iso.
-#>
-Function Get-CoreosISO {
-    [CmdletBinding()]
-    Param (
-    )
-
-    BEGIN {
-        $path = Join-Path -Path $(Get-CoreosFilesDirectory) "coreos_production_iso_image.iso"
-    }
-
-    PROCESS {
-        if (!(Test-Path $path)) {
-            # Get the alpha image always as you can install stable, beta and alpha from this image.
-            Invoke-WebRequest -Uri 'http://alpha.release.core-os.net/amd64-usr/current/coreos_production_iso_image.iso' -OutFile $path
-        }
-
-        Get-Item $path
-    }
-}
-
-<#
-.SYNOPSIS
-    Get the dynamicrun iso.
-#>
-Function Get-DynamicrunISO {
-    [CmdletBinding()]
-    Param (
-    )
-
-    BEGIN {
-        $path = Join-Path -Path $(Get-ModuleFilesDirectory) "dynamicrun\iso\config2.iso"
-    }
-
-    PROCESS {
-        Get-Item $path
-    }
-}
-
-<#
-.SYNOPSIS
-    Get the dynamicrun install folder.
-#>
-Function Get-DynamicrunInstallFolder {
-    [CmdletBinding()]
-    Param (
-    )
-
-    BEGIN {
-        $path = Join-Path -Path $(Get-ModuleFilesDirectory) "dynamicrun\install"
-    }
-
-    PROCESS {
-        Get-Item $path
-    }
-}
-
-<#
-.SYNOPSIS
-    Get the dynamicrun reconfigure folder.
-#>
-Function Get-DynamicrunReconfigureFolder {
-    [CmdletBinding()]
-    Param (
-    )
-
-    BEGIN {
-        $path = Join-Path -Path $(Get-ModuleFilesDirectory) "dynamicrun\reconfigure"
-    }
-
-    PROCESS {
-        Get-Item $path
-    }
-}
-
-<#
-.SYNOPSIS
-    Gets the time to wait for an install.
-#>
-Function Get-InstallTimeout {
-    [CmdletBinding()]
-    Param (
-    )
-
-    PROCESS {
-        if ($env:COREOS_HYPERV_INSTALL_TIMEOUT) {
-            Write-Output $env:COREOS_HYPERV_INSTALL_TIMEOUT
-        } else {
-            Write-Output 180
-        }
-    }
-}
-
-<#
-.SYNOPSIS
     Gets the clusters directory storing metadata about the clusters.
 #>
 Function Get-CoreosClustersDirectory {
@@ -176,6 +81,22 @@ Function Get-CoreosClusterDirectory {
 
     PROCESS {
         Join-Path -Path $(Get-CoreosClustersDirectory) $ClusterName
+    }
+}
+
+Function Get-ImageDirectory {
+    [CmdletBinding()]
+    Param (
+    )
+
+    PROCESS {
+        $path = Join-Path -Path $(Get-CoreosFilesDirectory) "Images"
+
+        if (Test-Path $path) {
+            Get-Item $path
+        } else {
+            New-Item $Path -Type directory
+        }
     }
 }
 

@@ -1,14 +1,15 @@
 coreos-hyperv
 =============
 
-Please note that I will updating this script over the next little while to use the vhd images created by coreos for Hyper-V. This will make the install process a lot simpler than it currently is and a lot less error prone (also a lot faster). The script will probably not be backwards compatible.
+This branch is the development of this script for the installation of coreos using coreos provided hyper-v vhds instead of installing from iso. This makes the install process much simpler and less error prone.
 
 Bootstrap a coreos cluster on Hyper-V.
 
-### Prerequisites ###
+## Prerequisites ##
 Windows 8.1 or Windows Server 2012 R2 and Hyper-V turned on.   
 Internet Connection.  
 At least one virtual switch created in hyper-v.  
+[Bunzip for Windows](http://gnuwin32.sourceforge.net/packages/bzip2.htm) in your $PATH. This is used to decompress coreos images.
 
 (Although the script will work in Windows 8 and Windows Server 2012 coreos doesn't seem to work on Hyper-V on those platforms at the moment.)
 
@@ -47,7 +48,7 @@ The next thing you need to do is to add your ssh public key to the configuration
 New-CoreosCluster -Name coreos-basiccluster0 -Count 3 -NetworkConfigs $NetworkConfig -Config .\coreos-hyperv\configs\basiccluster_staticnetwork.yaml | Start-CoreosCluster
 ```
 
-All going well your cluster should now be up and running. It takes around 5 minutes to set up. I have found however that the network config doesn't always work on the first boot so you might need to restart the VMs. To do this you can run the following commands.
+The following commands can now be used to stop and start a cluster.
 
 ```
 $cluster = Get-CoreosCluster -ClusterName coreos-basiccluster0
@@ -79,45 +80,9 @@ The following handles can be used for configuring networks where X is replaced w
 `{{DNS_SERVER_Y[NET_X]}}` The DNS Server Y for Network Config X. (Each DNS Server is represented by it's index Y).  
 `{{SUBNET_BITS[NET_X]}}` The count of 1 bits in the subnet mask for Network Config X.  
 
-## Limitations ##
-### Tracking the install ###
-The coreos iso doesn't have hyper-v integration services installed so it is currently not possible to track the installation progress of the installation or retrieve the IP address assigned by dhcp to the VM(This is why acutally why I ended up writing this script and not using a Vagrant File witht the hyper-v provider for Vagrant).
-
-To ensure that the installation is running smoothly you can take the following steps.
-
-1. Open Hyper-V Manager.
-2. Connect to one of the created VMs.
-3. Enter the command `systemctl status dynamicrun-install.service`.
-
-This will show the status of the install process. If it hasn't run or failed it should be apparent.
-
-You can also see the network status with `ifconfig`
-
-### The auto install process ###
-The auto install process is a bit hacky. It works as following.
-
-1. Creates a VM and a VHD for installing coreos onto.
-2. Downloads and attaches the coreos iso as the boot device.
-3. Attaches a VHDX file that is created in the install process that has an installation script and the cloud-config for the installation available on it.
-4. Attaches an ISO labeled config2. Coreos automatically detects and runs this. This ISO is configured to call the installation script on the VHDX.
-
 ## Troubleshooting ##
-### Issues with install ###
-If you run into any difficulty with the installed vms you can connect to the VMs and log into the vms by doing the following.
-
-1. Turn off the VM if it is already on.
-2. Open the Connect to window of the VM and turn on the VM.
-3. Press any key a few times to interupt the boot process.
-4. Type the command `boot_kernel coreos.autologin`
-
-This will boot the VM and will auto login so you can troubleshoot and debug the installation.
-
 ### Networking ###
-I've found the easiest way for networking is to set up a seperate VM to act as a NAT. To do this you can use something like Windows Server or ClearOS. This way you have more control over what ip addresses your VMS are assigned etc. This means that even if you are on different networks (i.e. when you are on a laptop) the connections and cluster will remain working.
-
-The installation script requires DHCP to work during installation. Coreos needs a network connection to download the image. It doesn't just install it from disk. However once coreos is installed static networks defined in the config will be used.
-
-There seems to be sometimes an issue on first boot of the static network config not being applied. Usually a reboot of the VMS fixes this.
+I've found the easiest way for networking is to set up a seperate VM to act as a NAT. To do this you can use something like Windows Server or ClearOS. This way you have more control over what ip addresses your VMS are assigned etc. This also means that even if you are on different networks (i.e. when you are on a laptop in a different location) the connections and cluster will remain working.
 
 ### Modules Functions ###
 To see the functions of this powershell modules you can use the `Show-Command` powershell function. You can also find out how to use the functions using `Get-Help <Function Name>`. This will give you a description on all the parameters and options for the functions.

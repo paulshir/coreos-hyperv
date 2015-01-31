@@ -8,7 +8,7 @@
     Gets a coreos image to use for coreos vms. Checks if the release required is available locally.
     If it isn't available loacally the image will be downloaded and uncompressed. If no release is
     specified then the current version will be queried and downloaded.
-.PARAMETER ImagesDir
+.PARAMETER ImageDir
     The directory to download the images to.
 .PARAMETER Channel
     The coreos channel to download the image from. The possible values are Alpha, Beta or Stable.
@@ -21,7 +21,7 @@ Function Get-CoreosImage {
     [CmdletBinding()]
     Param (
         [Parameter (Mandatory=$true)]
-        [String] $ImagesDir,
+        [String] $ImageDir,
 
         [Parameter (Mandatory=$true)]
         [ValidateSet("Alpha","Beta","Stable")] 
@@ -33,13 +33,13 @@ Function Get-CoreosImage {
 
     PROCESS {
         if ($Release -eq "" -or $Release.ToLower -eq "current") {
-            $Release = Get-CurrentVersion -Channel:$Channel
+            $Release = Get-CurrentRelease -Channel:$Channel
         }
 
         $r = New-Object PSObject
         $r | Add-Member Release $Release
 
-        $localPath = Get-ReleaseLocalPath -ImagesDir:$ImagesDir -Release:$Release
+        $localPath = Get-ReleaseLocalPath -ImageDir:$ImageDir -Channel:$Channel -Release:$Release
         $r | Add-Member ImagePath $localPath
 
         if (Test-Path $localPath) {
@@ -48,7 +48,7 @@ Function Get-CoreosImage {
         }
 
         if (!(Test-BzipInPath)) {
-            throw "Bzip not in PATH. Bzip is required to decompress images"
+            throw "bunzip2 not in PATH. Bzip is required to decompress images"
             return
         }
 
@@ -63,7 +63,7 @@ Function Get-CoreosImage {
     Gets the base config drive vhd to build config drives off.
 .PARAMETER ModuleFilesDir
     The directory conatining files for the module.
-.PARAMETER ImagesDir
+.PARAMETER ImageDir
     The directory that images are saved to.
 #>
 Function Get-BaseConfigDrive {
@@ -73,11 +73,11 @@ Function Get-BaseConfigDrive {
         [String] $ModuleFilesDir,
 
         [Parameter (Mandatory=$true)]
-        [String] $ImagesDir
+        [String] $ImageDir
     )
 
     PROCESS {
-        $vhd = Join-Path -Path $ImagesDir "config2_base.vhdx"
+        $vhd = Join-Path -Path $ImageDir "config2_base.vhdx"
 
         if (Test-Path $vhd) {
             Write-Output $vhd
@@ -87,7 +87,7 @@ Function Get-BaseConfigDrive {
         $base = Join-Path -Path $ModuleFilesDir "config2_base.vhdx.bz2"
 
         if (!(Test-BzipInPath)) {
-            throw "Bzip not in PATH. Bzip is required to decompress images"
+            throw "bunzip2 not in PATH. Bzip is required to decompress images"
             return
         }
 
@@ -100,7 +100,7 @@ Function Get-BaseConfigDrive {
 ############################
 #### Private Functions #####
 ############################
-Function Get-CurrentVersion {
+Function Get-CurrentRelease {
     [CmdletBinding()]
     Param (
         [Parameter (Mandatory=$true)]
@@ -127,7 +127,11 @@ Function Get-ReleaseLocalPath {
     [CmdletBinding()]
     Param (
         [Parameter (Mandatory=$true)]
-        [String] $ImagesDir,
+        [String] $ImageDir,
+
+        [Parameter (Mandatory=$true)]
+        [ValidateSet("Alpha","Beta","Stable")] 
+        [String] $Channel,
 
         [Parameter (Mandatory=$true)]
         [String] $Release
@@ -135,7 +139,7 @@ Function Get-ReleaseLocalPath {
 
     PROCESS {
         $r = $Release -replace "\.", "_"
-        Write-Output $(Join-Path -Path $ImagesDir "coreos-hyperv_$r.vhd")
+        Write-Output $(Join-Path -Path $ImageDir "coreos-hyperv_$($Channel.ToLower())_$r.vhd")
     }
 }
 
