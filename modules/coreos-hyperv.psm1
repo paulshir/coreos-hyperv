@@ -421,6 +421,7 @@ Function Invoke-CoreosClusterBuilder {
 
                 # Copy the image to the vhd location.
                 Copy-Item -Path:$image.ImagePath -Destination:$vhdLocation
+                Resize-VHD -Path:$vhdLocation -SizeBytes:10GB
                 Add-VMHardDiskDrive -VMName $VMName -ControllerType IDE -ControllerNumber 0 -ControllerLocation 0 -Path $vhdLocation
                 Remove-VMDvdDrive -VMName $VMName -ControllerNumber 1 -ControllerLocation 0 | Out-Null
 
