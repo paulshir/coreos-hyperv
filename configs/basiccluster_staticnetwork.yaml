@@ -32,7 +32,7 @@ coreos:
       command: start
   update:
     reboot-strategy: etcd-lock
-    group: alpha
+    group: {{CHANNEL}}
 manage_etc_hosts: localhost
 write_files:
   - path: /etc/environment

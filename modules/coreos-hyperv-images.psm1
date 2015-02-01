@@ -1,4 +1,42 @@
 ############################
+##### Public Functions #####
+############################
+<#
+.SYNOPSIS
+    Gets the release version of a coreos cluster.
+.PARAMETER Channel
+    The channel to get the release version of.
+    Valid values are alpha, beta, stable and master.
+#>
+Function Get-CoreosCurrentReleaseNumber {
+    [CmdletBinding()]
+    Param (
+        [Parameter (Mandatory=$true)]
+        [ValidateSet("Alpha","Beta","Stable","Master")]
+        [String] $Channel
+    )
+
+    PROCESS {
+        $release = ""
+
+        if ($Channel -eq "Master") {
+            $uri = "http://storage.core-os.net/coreos/amd64-usr/master/version.txt"
+        } else {
+            $uri = "http://$($Channel.ToLower()).release.core-os.net/amd64-usr/current/version.txt"
+        }
+
+        $release = ((Invoke-WebRequest -Uri:$uri).Content -split('[\r\n]')) | foreach { if ($_ -like "COREOS_VERSION*") { Write-Output $(($_ -split('='))[1]) }} | Select-Object -First 1
+
+        if ($release -eq "") {
+            throw "Release does not exist in channel $Channel"
+            return
+        }
+
+        Write-Output $release
+    }
+}
+
+############################
 #### Protected Functions ###
 ############################
 <#
@@ -24,7 +62,7 @@ Function Get-CoreosImage {
         [String] $ImageDir,
 
         [Parameter (Mandatory=$true)]
-        [ValidateSet("Alpha","Beta","Stable")] 
+        [ValidateSet("Alpha","Beta","Stable","Master")]
         [String] $Channel,
 
         [Parameter (Mandatory=$false)]
@@ -33,7 +71,7 @@ Function Get-CoreosImage {
 
     PROCESS {
         if ($Release -eq "" -or $Release.ToLower -eq "current") {
-            $Release = Get-CurrentRelease -Channel:$Channel
+            $Release = Get-CoreosCurrentReleaseNumber -Channel:$Channel
         }
 
         $r = New-Object PSObject
@@ -100,29 +138,6 @@ Function Get-BaseConfigDrive {
 ############################
 #### Private Functions #####
 ############################
-Function Get-CurrentRelease {
-    [CmdletBinding()]
-    Param (
-        [Parameter (Mandatory=$true)]
-        [ValidateSet("Alpha","Beta","Stable")] 
-        [String] $Channel
-    )
-
-    PROCESS {
-        $release = ""
-
-        $uri = "http://$($Channel.ToLower()).release.core-os.net/amd64-usr/current/version.txt"
-        $release = ((Invoke-WebRequest -Uri:$uri).Content -split('[\r\n]')) | foreach { if ($_ -like "COREOS_VERSION*") { Write-Output $(($_ -split('='))[1]) }} | Select-Object -First 1
-
-        if ($release -eq "") {
-            throw "Release does not exist in channel $Channel"
-            return
-        }
-
-        Write-Output $release
-    }
-}
-
 Function Get-ReleaseLocalPath {
     [CmdletBinding()]
     Param (
@@ -130,7 +145,7 @@ Function Get-ReleaseLocalPath {
         [String] $ImageDir,
 
         [Parameter (Mandatory=$true)]
-        [ValidateSet("Alpha","Beta","Stable")] 
+        [ValidateSet("Alpha","Beta","Stable","Master")]
         [String] $Channel,
 
         [Parameter (Mandatory=$true)]
@@ -167,7 +182,7 @@ Function Get-CoreosImageFromSite {
         [String] $ImageSavePath,
 
         [Parameter (Mandatory=$true)]
-        [ValidateSet("Alpha","Beta","Stable")] 
+        [ValidateSet("Alpha","Beta","Stable","Master")]
         [String] $Channel,
 
         [Parameter (Mandatory=$true)]
@@ -181,7 +196,11 @@ Function Get-CoreosImageFromSite {
             Remove-Item -Force $tmp
         }
 
-        $uri = "http://$($Channel.ToLower()).release.core-os.net/amd64-usr/$Release/coreos_production_hyperv_image.vhd.bz2"
+        if ($Channel -eq "Master") {
+            $uri = "http://storage.core-os.net/coreos/amd64-usr/master/coreos_production_hyperv_image.vhd.bz2"
+        } else {
+            $uri = "http://$($Channel.ToLower()).release.core-os.net/amd64-usr/$Release/coreos_production_hyperv_image.vhd.bz2"            
+        }
 
         try {
             Invoke-WebRequest -Uri $uri -OutFile $tmp    

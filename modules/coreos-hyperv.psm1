@@ -35,7 +35,7 @@ Function New-CoreosCluster {
         [PSObject[]] $NetworkConfigs,
 
         [Parameter (Mandatory=$false)]
-        [ValidateSet("Alpha","Beta","Stable")]
+        [ValidateSet("Alpha","Beta","Stable","Master")]
         [String] $Channel = "Alpha",
 
         [Parameter (Mandatory=$false)]
@@ -374,10 +374,6 @@ Function Invoke-CoreosClusterBuilder {
             
             # Get the image
             $image = Get-CoreosImage -ImageDir:$(Get-ImageDirectory) -Channel:$($ClusterInfo.Channel) -Release:$($ClusterInfo.Release) -ErrorAction:Stop
-            if ($ClusterInfo.Release -ne $image.Release) {
-                $ClusterInfo.Release = $image.Release
-                Out-CoreosClusterInfo -ClusterInfo $ClusterInfo
-            }
 
             $baseConfigDrive = Get-BaseConfigDrive -ModuleFilesDir:$(Get-ModuleFilesDirectory) -ImageDir:$(Get-ImageDirectory) -ErrorAction:Stop            
 
@@ -395,6 +391,7 @@ Function Invoke-CoreosClusterBuilder {
                     -VMName:$_.Name `
                     -ClusterName:$ClusterInfo.Name `
                     -VMNumber:$_.Number `
+                    -Channel:$ClusterInfo.Channel `
                     -EtcdDiscoveryToken:$ClusterInfo.Config.EtcdDiscoveryToken `
                     -NetworkConfigs:$ClusterInfo.Config.Networks | Out-Null
 

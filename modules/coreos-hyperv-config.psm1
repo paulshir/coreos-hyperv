@@ -17,6 +17,9 @@
     The number of the VM in the Cluster (Starting at 0).
     {{VM_NUMBER}} will be replaced in the template config file with this value.
     This value will also be used in the assigning of IP Addresses for network config.
+.PARAMETER Channel
+    The channel (e.g. alpha, beta, stable or master) to use.
+    {{CHANNEL}} will be replaced in the template config with the lowercase version of this value.
 .PARAMETER EtcdDiscoveryToken
     The etcd discovery used so that machines can all join the same cluster.
     {{ETCD_DISCOVERY_TOKEN}} will be replaced in the template config with this value.
@@ -52,6 +55,10 @@ Function New-CoreosConfig {
         [int] $VMNumber,
 
         [Parameter (Mandatory=$false)]
+        [ValidateSet("Alpha","Beta","Stable","Master")]
+        [String] $Channel,
+
+        [Parameter (Mandatory=$false)]
         [String] $EtcdDiscoveryToken,
 
         [Parameter (Mandatory=$false)]
@@ -76,6 +83,7 @@ Function New-CoreosConfig {
         if ($VMNumber -or $VMNumber -eq 0) { $cfg = $cfg | foreach { $_ -replace '{{VM_NUMBER}}', $VMNumber.ToString() } | foreach { $_ -replace '{{VM_NUMBER_00}}', $vmnumber00 } }
         if ($EtcdDiscoveryToken) { $cfg = $cfg | foreach { $_ -replace '{{ETCD_DISCOVERY_TOKEN}}', $EtcdDiscoveryToken } }
         if ($ClusterName) { $cfg = $cfg | foreach { $_ -replace '{{CLUSTER_NAME}}', $ClusterName } }
+        if ($Channel) { $cfg = $cfg | foreach { $_ -replace '{{CHANNEL}}', $Channel.ToLower()}}
 
         for ($i=0; $i -lt $NetworkConfigs.Length; $i++) {
             $Network = $NetworkConfigs[$i]
