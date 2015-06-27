@@ -86,7 +86,7 @@ Function Get-CoreosImage {
         }
 
         if (!(Test-BzipInPath)) {
-            throw "bunzip2 not in PATH. Bzip is required to decompress images"
+            throw "bunzip2 not in PATH nor a git installation. Bzip is required to decompress images."
             return
         }
 
@@ -124,7 +124,7 @@ Function Get-BaseConfigDrive {
 
         $base = Join-Path -Path $ModuleFilesDir "config2_base.vhdx.bz2"
 
-        if (!(Test-BzipInPath)) {
+        if (!(Test-BzipCommandAvailable)) {
             throw "bunzip2 not in PATH. Bzip is required to decompress images"
             return
         }
@@ -158,17 +158,61 @@ Function Get-ReleaseLocalPath {
     }
 }
 
-Function Test-BzipInPath {
+Function Get-MsysgitBunzipCommand {
+    [CmdletBinding()]
+    Param ()
+
+    PROCESS {
+        $default = "C:\Program Files (x86)\Git\bin\bzip2.exe"
+        if (Test-Path $default) {
+            Write-Output $default
+            return
+        }
+
+        try {
+            $msysgit = Split-Path (get-command git).Definition -Parent | Split-Path -Parent
+            $bzip = Join-Path $msysgit "bin\bzip2.exe"
+            if (Test-Path $bzip) {
+                Write-Output $bzip
+                return
+            }
+        } catch {
+            Write-Verbose $_.Exception
+        }
+
+        Write-Output $null
+    }
+}
+
+Function Get-BzipCommand {
+    [CmdletBinding()] 
+    Param (
+    )
+
+    PROCESS {
+        $bzip = $null
+        try {
+            Get-Command bunzip2 -ErrorAction:Stop | Out-Null
+            $bzip = "bunzip2"
+        } catch {
+        }
+
+        if ($bzip -eq $null) {
+            $bzip = Get-MsysgitBunzipCommand
+        }
+
+        Write-Output $bzip
+    }
+}
+
+Function Test-BzipCommandAvailable {
     [CmdletBinding()]
     Param (
     )
 
     PROCESS {
-        try {
-            Get-Command bunzip2 -ErrorAction:Stop
-        } catch {
+        if ($(Get-BzipCommand) -eq $null) {
             Write-Output $false
-            return
         }
 
         Write-Output $true
@@ -229,7 +273,9 @@ Function Invoke-Bunzip {
     )
 
     PROCESS {
+        $bzip = Get-BzipCommand
         Write-Verbose "Bunzipping $Target to $Destination"
-        & cmd /C "bunzip2 -c -k `"$Target`" > `"$Destination`"" | Out-Null
+        Write-Verbose "`"$Bzip`" -c -d -k `"$Target`" > `"$Destination`""
+        & cmd /C "`"`"$Bzip`" -c -d -k `"$Target`" > `"$Destination`"`"" | Out-Null
     }
 }
