@@ -85,7 +85,7 @@ Function Get-CoreosImage {
             return
         }
 
-        if (!(Test-BzipInPath)) {
+        if (!(Test-BzipCommandAvailable)) {
             throw "bunzip2 not in PATH nor a git installation. Bzip is required to decompress images."
             return
         }
@@ -125,7 +125,7 @@ Function Get-BaseConfigDrive {
         $base = Join-Path -Path $ModuleFilesDir "config2_base.vhdx.bz2"
 
         if (!(Test-BzipCommandAvailable)) {
-            throw "bunzip2 not in PATH. Bzip is required to decompress images"
+            throw "bunzip2 not in PATH nor a git installation. Bzip is required to decompress images."
             return
         }
 
