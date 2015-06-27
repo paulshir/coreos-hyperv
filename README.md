@@ -7,7 +7,7 @@ These are some basic functions to help bootstrap a coreos cluster on Hyper-V.
 Windows 8.1 or Windows Server 2012 R2 and Hyper-V turned on.   
 Internet Connection.  
 At least one virtual switch created in hyper-v.  
-[Bunzip for Windows](http://gnuwin32.sourceforge.net/packages/bzip2.htm) in your $PATH. This is used to decompress coreos images.
+Bunzip. This is used to decompress the coreos images. There is a version of bunzip packaged with msysgit which is used if git is installed. Otherwise you can download [Bunzip for Windows](http://gnuwin32.sourceforge.net/packages/bzip2.htm) and add it to your path.  
 
 (Although the script will work in Windows 8 and Windows Server 2012 I haven't been able to test coreos running on those platforms. Some users have had issues running in the past but this might have changed now that coreos provides images for Hyper-v.)
 
