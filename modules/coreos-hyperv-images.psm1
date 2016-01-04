@@ -163,7 +163,7 @@ Function Get-MsysgitBunzipCommand {
     Param ()
 
     PROCESS {
-        $default = "C:\Program Files (x86)\Git\bin\bzip2.exe"
+        $default = "C:\Program Files\Git\usr\bin\bzip2.exe"
         if (Test-Path $default) {
             Write-Output $default
             return
@@ -171,7 +171,7 @@ Function Get-MsysgitBunzipCommand {
 
         try {
             $msysgit = Split-Path (get-command git).Definition -Parent | Split-Path -Parent
-            $bzip = Join-Path $msysgit "bin\bzip2.exe"
+            $bzip = Join-Path $msysgit "usr\bin\bzip2.exe"
             if (Test-Path $bzip) {
                 Write-Output $bzip
                 return
