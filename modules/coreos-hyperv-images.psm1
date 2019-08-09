@@ -276,6 +276,6 @@ Function Invoke-Bunzip {
         $bzip = Get-BzipCommand
         Write-Verbose "Bunzipping $Target to $Destination"
         Write-Verbose "`"$Bzip`" -c -d -k `"$Target`" > `"$Destination`""
-        & cmd /C "`"`"$Bzip`" -c -d -k `"$Target`" > `"$Destination`"`"" | Out-Null
+        & cmd /C "`"$Bzip`" -c -d -k `"$Target`" > `"$Destination`"" | Out-Null
     }
 }
